@@ -1,0 +1,10 @@
+{
+  "v": 1,
+  "kdf": "PBKDF2-SHA256",
+  "iter": 300000,
+  "salt": "2j/RAwEcfohPUh+RoyAHcg==",
+  "iv": "fM4zt55aTWze2Eox",
+  "ct": "lXCoX2rNR842KZ7dPZ6n/J29riDewqVCj63G60mNu+baZuqp/W4YI1ITo/XOdTKbX2ugU0jSVEoVKDeR68MzZjuVrm47m3iFijqZ2z/fWyC08p1hnvZHy0QYFK0edBa4HTvgVOASwg19j1Hai9K8N30oijtvG8RyNf1xWw==",
+  "label": "Harding team key",
+  "created": "2026-09-05"
+}
