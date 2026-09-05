@@ -641,8 +641,16 @@ export default function ProgramLayerBuilder() {
       {/* app bar */}
       <div className="appbar" style={{ position: "sticky", top: 0, zIndex: 20, background: C.maroon, color: C.sand, boxShadow: "0 1px 0 rgba(0,0,0,0.15)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", padding: narrow ? "10px 16px" : "12px 32px", display: "flex", alignItems: "center", gap: 14, minHeight: 48 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 6, background: C.gold, display: "grid", placeItems: "center", flexShrink: 0 }}>
-            <span style={{ display: "block", width: 11, height: 11, borderLeft: `3px solid ${C.maroon}`, borderBottom: `3px solid ${C.maroon}`, marginTop: -3, marginLeft: 2 }} />
+          <div title="Harding — after the Budget and Accounting Act of 1921" style={{ width: 28, height: 28, borderRadius: 6, background: C.gold, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <svg width="20" height="20" viewBox="0 0 20 20" aria-label="abacus">
+              <rect x="1.5" y="1.5" width="17" height="17" rx="1.5" fill="none" stroke={C.maroon} strokeWidth="1.6" />
+              <line x1="1.5" y1="6" x2="18.5" y2="6" stroke={C.maroon} strokeWidth="1.1" />
+              <line x1="1.5" y1="10" x2="18.5" y2="10" stroke={C.maroon} strokeWidth="1.1" />
+              <line x1="1.5" y1="14" x2="18.5" y2="14" stroke={C.maroon} strokeWidth="1.1" />
+              <circle cx="5" cy="6" r="1.6" fill={C.maroon} /><circle cx="8.4" cy="6" r="1.6" fill={C.maroon} /><circle cx="15" cy="6" r="1.6" fill={C.maroon} />
+              <circle cx="5" cy="10" r="1.6" fill={C.maroon} /><circle cx="12" cy="10" r="1.6" fill={C.maroon} /><circle cx="15.4" cy="10" r="1.6" fill={C.maroon} />
+              <circle cx="5" cy="14" r="1.6" fill={C.maroon} /><circle cx="8.4" cy="14" r="1.6" fill={C.maroon} /><circle cx="11.8" cy="14" r="1.6" fill={C.maroon} />
+            </svg>
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10, whiteSpace: "nowrap", overflow: "hidden" }}>
