@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Harding — encrypt a team key</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; background: #F4EEE2; color: #2C2C2C; font: 15px/1.55 Georgia, serif; }
+  .wrap { max-width: 640px; margin: 40px auto; padding: 0 20px; }
+  .card { background: #fff; border: 1px solid #D9D0BF; border-radius: 6px; padding: 22px; }
+  h1 { font-weight: normal; font-size: 24px; margin: 0 0 6px; } p { color: #6B6B6B; font-size: 14px; }
+  label { display: block; font: 12px Arial, sans-serif; color: #6B6B6B; margin: 14px 0 4px; }
+  input, textarea { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #D9D0BF; border-radius: 4px; font: 13px Arial, sans-serif; background: #fff; }
+  textarea { font-family: monospace; font-size: 12px; }
+  button { margin-top: 16px; padding: 10px 16px; background: #6B1A2A; color: #F4EEE2; border: 1px solid #6B1A2A; border-radius: 4px; font: 13.5px Arial, sans-serif; cursor: pointer; }
+  button.sec { background: none; color: #6B1A2A; margin-left: 8px; }
+  .note { font: 12px/1.5 Arial, sans-serif; color: #6B6B6B; margin-top: 12px; } .err { color: #6B1A2A; }
+</style></head>
+<body><div class="wrap"><div class="card">
+  <h1>Encrypt a team key</h1>
+  <p>This page runs entirely in your browser and sends nothing anywhere. Paste a dedicated Anthropic API key and choose a passphrase; you get back an encrypted string to commit as <code>team-key.json</code>. Only people who know the passphrase can unlock the key.</p>
+  <label>Anthropic API key (use a dedicated key with a spend limit)</label>
+  <input id="key" type="password" placeholder="sk-ant-…" autocomplete="off">
+  <label>Team passphrase — four or five ordinary words is ideal</label>
+  <input id="pass" type="text" placeholder="e.g. harding budget line of sight" autocomplete="off">
+  <label>Confirm passphrase</label>
+  <input id="pass2" type="text" autocomplete="off">
+  <button id="go">Encrypt</button><button class="sec" id="test" style="display:none">Test unlock</button>
+  <div id="msg" class="note"></div>
+  <label>Encrypted team key — paste this whole block into <code>team-key.json</code></label>
+  <textarea id="out" rows="6" readonly></textarea>
+  <button class="sec" id="copy" style="margin-left:0">Copy</button>
+  <div class="note">Passphrases are matched ignoring case and extra spaces. Derivation: PBKDF2-SHA256, 300,000 rounds, 16-byte salt → AES-256-GCM with a 12-byte nonce. Rotating the key later is the same three steps with a new key.</div>
+</div></div>
+<script>
+const enc = new TextEncoder(), dec = new TextDecoder();
+const b64 = (u8) => btoa(String.fromCharCode(...u8)), unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+async function derive(pass, salt) {
+  const base = await crypto.subtle.importKey("raw", enc.encode(pass.normalize("NFKC").toLowerCase().replace(/\s+/g, " ").trim()), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 300000, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+}
+async function encrypt(key, pass) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const k = await derive(pass, salt);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, enc.encode(key)));
+  return { v: 1, kdf: "PBKDF2-SHA256", iter: 300000, salt: b64(salt), iv: b64(iv), ct: b64(ct), label: "Harding team key", created: new Date().toISOString().slice(0, 10) };
+}
+async function decrypt(blob, pass) {
+  const k = await derive(pass, unb64(blob.salt));
+  return dec.decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(blob.iv) }, k, unb64(blob.ct)));
+}
+const $ = (id) => document.getElementById(id); let last = null;
+$("go").onclick = async () => {
+  const key = $("key").value.trim(), pass = $("pass").value, pass2 = $("pass2").value; $("msg").className = "note";
+  if (!key.startsWith("sk-ant-")) { $("msg").className = "note err"; $("msg").textContent = "That doesn't look like an Anthropic key."; return; }
+  if (pass.trim().length < 12) { $("msg").className = "note err"; $("msg").textContent = "Use a longer passphrase — at least 12 characters, ideally several words."; return; }
+  if (pass !== pass2) { $("msg").className = "note err"; $("msg").textContent = "The passphrases don't match."; return; }
+  $("msg").textContent = "Deriving key…"; last = await encrypt(key, pass);
+  $("out").value = JSON.stringify(last, null, 2); $("test").style.display = "inline-block";
+  $("msg").textContent = "Done. Copy the block below into team-key.json. Keep the passphrase somewhere safe; it is not stored anywhere.";
+};
+$("test").onclick = async () => {
+  try { const pt = await decrypt(last, prompt("Type the passphrase to test:") || ""); $("msg").textContent = pt === $("key").value.trim() ? "Unlock test passed." : "Decrypted, but it doesn't match — odd."; }
+  catch { $("msg").className = "note err"; $("msg").textContent = "Unlock test failed: wrong passphrase."; }
+};
+$("copy").onclick = async () => { try { await navigator.clipboard.writeText($("out").value); $("msg").textContent = "Copied."; } catch { $("out").select(); } };
+</script></body></html>
