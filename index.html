@@ -552,6 +552,7 @@ function ProgramLayerBuilder() {
   const [status, setStatus] = useState("idle");
   const [progress, setProgress] = useState("");
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("pw_anthropic_key") || "");
+  const [keyOpen, setKeyOpen] = useState(false);
   useEffect(() => {
     localStorage.setItem("pw_anthropic_key", apiKey);
   }, [apiKey]);
@@ -1759,11 +1760,41 @@ function ProgramLayerBuilder() {
       textTransform: "uppercase",
       color: C.grey
     }
-  }, "Setup"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Anthropic API key (kept in this browser only)"), /*#__PURE__*/React.createElement("input", {
+  }, "Setup"), apiKey && !keyOpen ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      fontFamily: sans,
+      fontSize: 12,
+      color: C.grey
+    }
+  }, /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: "#3D6B3A",
+      marginRight: 6
+    }
+  }, "●"), "API key saved in this browser"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setKeyOpen(true),
+    style: {
+      background: "none",
+      border: "none",
+      padding: 0,
+      color: C.maroon,
+      fontFamily: sans,
+      fontSize: 12,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
+  }, "Change")) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Anthropic API key (kept in this browser only)"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: apiKey,
     onChange: e => setApiKey(e.target.value),
+    onBlur: () => {
+      if (apiKey) setKeyOpen(false);
+    },
     placeholder: "sk-ant-…",
+    autoFocus: keyOpen,
     style: {
       width: "100%",
       padding: "8px 10px",
@@ -1774,7 +1805,20 @@ function ProgramLayerBuilder() {
       color: C.ink,
       boxSizing: "border-box"
     }
-  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Model"), /*#__PURE__*/React.createElement("select", {
+  }), apiKey && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setKeyOpen(false),
+    style: {
+      marginTop: 6,
+      background: "none",
+      border: "none",
+      padding: 0,
+      color: C.maroon,
+      fontFamily: sans,
+      fontSize: 12,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
+  }, "Done")), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Model"), /*#__PURE__*/React.createElement("select", {
     value: model,
     onChange: e => setModel(e.target.value),
     style: {
