@@ -3052,7 +3052,7 @@ function ProgramLayerBuilder() {
     const index = `<table class="glance"><thead><tr><th>Program</th><th>Serves</th><th>Delivers</th><th>So that</th><th class="r">Cost</th><th class="r">FTE</th><th>Mandate</th><th>Alignment</th></tr></thead><tbody>${sorted.map(p => {
       const st = parseStatement(p.statement);
       const none = p.alignment === "none" || /none identified/i.test(p.strategic_linkage || "");
-      return `<tr><td><div class="pn">${esc(p.name)}</div><div class="sub" style="color:${p.facing === "internal" ? "#2E7D6E" : C.maroon}">${p.facing === "internal" ? "internal · performance" : "external · outcomes"}</div></td><td>${esc(p.beneficiary || st.beneficiary || "—")}</td><td>${esc(st.service || "—")}</td><td>${esc(st.result || "—")}</td><td class="r">${money(p.cost)}<div class="bar" style="width:72px;margin:4px 0 0 auto"><span style="width:${p.share / (sorted[0].share || 1) * 100}%;background:${p.is_admin ? C.grey : C.maroon}"></span></div><div class="sub">${Math.round(p.share * 100)}%</div></td><td class="r">${Number(p.fte || 0).toFixed(2)}</td><td style="color:${p.mandate?.status === "discretionary" ? C.gold : C.ink}">${esc(p.mandate?.status || "—")}${p.mandate?.citation ? `<div class="sub">${esc(p.mandate.citation)}</div>` : ""}</td><td style="color:${none ? C.grey : p.alignment === "direct" ? C.gold : C.ink}">${none ? "not aligned" : esc(p.alignment || "—")}${!none && p.strategic_linkage ? `<div class="sub">${esc(p.strategic_linkage)}</div>` : ""}</td></tr>`;
+      return `<tr><td><div class="pn">${esc(p.name)}</div><div class="sub" style="color:${p.facing === "internal" ? "#2E7D6E" : C.maroon}">${p.facing === "internal" ? "internal · performance" : "external · outcomes"}</div></td><td><b>${esc(p.beneficiary || st.beneficiary || "—")}</b></td><td>${esc(st.service || "—")}</td><td><b>${esc(st.result || "—")}</b></td><td class="r">${money(p.cost)}<div class="bar" style="width:72px;margin:4px 0 0 auto"><span style="width:${p.share / (sorted[0].share || 1) * 100}%;background:${p.is_admin ? C.grey : C.maroon}"></span></div><div class="sub">${Math.round(p.share * 100)}%</div></td><td class="r">${Number(p.fte || 0).toFixed(2)}</td><td><span class="tag" style="border-color:${p.mandate?.status === "discretionary" ? C.gold : C.line};color:${p.mandate?.status === "discretionary" ? C.gold : C.ink}">${esc(p.mandate?.status || "—")}</span>${p.mandate?.citation ? `<div class="sub cite">${esc(p.mandate.citation)}</div>` : ""}</td><td><span class="tag" style="border-color:${none ? C.line : p.alignment === "direct" ? C.gold : C.maroon};color:${none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon}">${none ? "not aligned" : esc(p.alignment || "—")}</span>${!none && p.strategic_linkage ? `<div class="sub cite">${esc(p.strategic_linkage)}</div>` : ""}</td></tr>`;
     }).join("")}</tbody></table>`;
     const un = unassigned.length ? `<section class="card un"><h2>Unassigned · ${money(unassigned.reduce((s, i) => s + i.amt, 0))}</h2><table>${unassigned.map(l => `<tr><td class="g">${esc(l.code)}</td><td>${esc(l.desc)} <span class="g">· ${esc(l.cc)}</span></td><td class="r">${money(l.amt)}</td></tr>`).join("")}</table></section>` : "";
     const tail = `<div class="two">${result.cautions?.length ? `<section class="card"><div class="lbl">Where this is a judgment call</div>${result.cautions.map(c => `<p>${esc(c)}</p>`).join("")}</section>` : ""}
@@ -3090,7 +3090,7 @@ function ProgramLayerBuilder() {
   .measures.three { grid-template-columns: 1fr 1fr 1fr; } .measures.three > div { border-right: 1px solid ${C.line}; } .measures.three > div:last-child { border-right: none; }
   .twenty { border-top: 1px solid ${C.line}; background: ${C.paper}; padding: 12px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px; } .twenty .lbl { display: block; margin-bottom: 3px; }
   .chips .chip.teal { border-color: #2E7D6E; color: #2E7D6E; } .pack { border-top: 1px solid ${C.line}; padding: 8px 20px; display: flex; gap: 14px; font: 11px Arial, Helvetica, sans-serif; }
-  .glance { width: 100%; border-collapse: collapse; font: 11.5px/1.4 Arial, Helvetica, sans-serif; margin: 6px 0 4px; } .glance th { font-weight: normal; color: ${C.grey}; font-size: 10.5px; text-align: left; padding: 4px 6px 6px 0; border-bottom: 1px solid ${C.line}; } .glance td { padding: 7px 6px 7px 0; border-bottom: 1px solid ${C.line}; vertical-align: top; } .glance .pn { font: 13px Georgia, serif; } .glance .sub { font-size: 10px; color: ${C.grey}; margin-top: 2px; } .glance .r { text-align: right; white-space: nowrap; } .glance .bar { height: 5px; }
+  .glance { width: 100%; border-collapse: collapse; font: 11.5px/1.4 Arial, Helvetica, sans-serif; margin: 6px 0 4px; } .glance th { font-weight: normal; color: ${C.grey}; font-size: 10.5px; text-align: left; padding: 4px 6px 6px 0; border-bottom: 1px solid ${C.line}; } .glance td { padding: 7px 6px 7px 0; border-bottom: 1px solid ${C.line}; vertical-align: top; } .glance .pn { font: 13px Georgia, serif; } .glance .sub { font-size: 10px; color: ${C.grey}; margin-top: 2px; } .glance .sub.cite { margin-top: 5px; font-style: italic; } .glance .tag { display: inline-block; font-size: 10.5px; padding: 2px 6px; border: 1px solid; border-radius: 3px; white-space: nowrap; } .glance .r { text-align: right; white-space: nowrap; } .glance .bar { height: 5px; }
   .card.plain { padding: 14px 20px; } .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; font: 13px Arial, Helvetica, sans-serif; }
   @media print { .wrap { padding: 0; max-width: none; } }
 </style></head><body><div class="wrap">
@@ -4446,7 +4446,8 @@ function ProgramLayerBuilder() {
       style: {
         padding: "8px 8px 8px 4px",
         minWidth: 140,
-        color: C.ink
+        color: C.ink,
+        fontWeight: "bold"
       }
     }, p.beneficiary || st.beneficiary || "—"), /*#__PURE__*/React.createElement("td", {
       style: {
@@ -4456,7 +4457,8 @@ function ProgramLayerBuilder() {
     }, st.service || "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 8px 8px 4px",
-        minWidth: 170
+        minWidth: 170,
+        fontWeight: "bold"
       }
     }, st.result || "—"), /*#__PURE__*/React.createElement("td", {
       style: {
@@ -4497,24 +4499,48 @@ function ProgramLayerBuilder() {
     }, Number(p.fte || 0).toFixed(2)), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 8px 8px 4px",
-        minWidth: 110,
-        color: p.mandate?.status === "discretionary" ? C.gold : C.ink
+        minWidth: 120
       }
-    }, p.mandate?.status || "—", p.mandate?.citation && /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-block",
+        fontSize: 11,
+        padding: "2px 7px",
+        border: `1px solid ${p.mandate?.status === "discretionary" ? C.gold : C.line}`,
+        borderRadius: 3,
+        color: p.mandate?.status === "discretionary" ? C.gold : C.ink,
+        whiteSpace: "nowrap"
+      }
+    }, p.mandate?.status || "—"), p.mandate?.citation && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10.5,
-        color: C.grey
+        color: C.grey,
+        marginTop: 5,
+        fontStyle: "italic",
+        lineHeight: 1.35
       }
     }, p.mandate.citation)), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 4px 8px 4px",
-        minWidth: 120,
-        color: none ? C.grey : p.alignment === "direct" ? C.gold : C.ink
+        minWidth: 130
       }
-    }, none ? "not aligned" : p.alignment || "—", !none && p.strategic_linkage && /*#__PURE__*/React.createElement("div", {
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        display: "inline-block",
+        fontSize: 11,
+        padding: "2px 7px",
+        border: `1px solid ${none ? C.line : p.alignment === "direct" ? C.gold : C.maroon}`,
+        borderRadius: 3,
+        color: none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon,
+        whiteSpace: "nowrap"
+      }
+    }, none ? "not aligned" : p.alignment || "—"), !none && p.strategic_linkage && /*#__PURE__*/React.createElement("div", {
       style: {
         fontSize: 10.5,
-        color: C.grey
+        color: C.grey,
+        marginTop: 5,
+        fontStyle: "italic",
+        lineHeight: 1.35
       }
     }, p.strategic_linkage)));
   })))) : /*#__PURE__*/React.createElement("div", {
@@ -4579,13 +4605,54 @@ function ProgramLayerBuilder() {
       }
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
       style: {
-        color: C.ink
+        color: C.grey
       }
-    }, "Serves"), " ", p.beneficiary || st.beneficiary || "—"), st.result && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+    }, "Serves "), /*#__PURE__*/React.createElement("span", {
       style: {
-        color: C.ink
+        color: C.ink,
+        fontWeight: "bold"
       }
-    }, "So that"), " ", st.result), /*#__PURE__*/React.createElement("div", null, p.mandate?.status || "—", " · ", none ? "not aligned" : p.alignment || "—", " · ", p.facing === "internal" ? "internal" : "external")));
+    }, p.beneficiary || st.beneficiary || "—")), st.result && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.grey
+      }
+    }, "So that "), /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: C.ink,
+        fontWeight: "bold"
+      }
+    }, st.result)), /*#__PURE__*/React.createElement("div", {
+      style: {
+        display: "flex",
+        gap: 6,
+        flexWrap: "wrap",
+        marginTop: 6
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10.5,
+        padding: "1px 6px",
+        border: `1px solid ${p.mandate?.status === "discretionary" ? C.gold : C.line}`,
+        borderRadius: 3,
+        color: p.mandate?.status === "discretionary" ? C.gold : C.ink
+      }
+    }, p.mandate?.status || "—"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10.5,
+        padding: "1px 6px",
+        border: `1px solid ${none ? C.line : p.alignment === "direct" ? C.gold : C.maroon}`,
+        borderRadius: 3,
+        color: none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon
+      }
+    }, none ? "not aligned" : p.alignment || "—"), /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontSize: 10.5,
+        padding: "1px 6px",
+        border: `1px solid ${C.line}`,
+        borderRadius: 3,
+        color: p.facing === "internal" ? "#2E7D6E" : C.maroon
+      }
+    }, p.facing === "internal" ? "internal" : "external"))));
   })), /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 14,
