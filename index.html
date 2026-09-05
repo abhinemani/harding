@@ -1366,8 +1366,8 @@ function ProgramLayerBuilder() {
   }, children);
   const STAGES = [["reading", "Reading the budget"], ["thinking", "Thinking it through"], ["drafting", "Drafting programs"], ["finishing", "Checking the draft"]];
   const stageIdx = STAGES.findIndex(([k]) => k === stage);
-  const RunStatus = () => /*#__PURE__*/React.createElement("div", {
-    className: "card fade",
+  const renderRunStatus = () => /*#__PURE__*/React.createElement("div", {
+    className: "card",
     style: {
       padding: `${narrow ? 14 : 16}px ${pad}px`,
       marginBottom: 20
@@ -1431,7 +1431,7 @@ function ProgramLayerBuilder() {
       }
     }, label, k === "drafting" && draft?.programs?.length ? ` · ${draft.programs.length}` : ""));
   })));
-  const SkeletonCard = () => /*#__PURE__*/React.createElement("section", {
+  const renderSkeleton = () => /*#__PURE__*/React.createElement("section", {
     className: "card program-card skel",
     style: {
       marginBottom: 20
@@ -1863,8 +1863,7 @@ function ProgramLayerBuilder() {
       lineHeight: 1.55,
       maxWidth: 640
     }
-  }, "What comes out is a first draft meant to be argued with in a room with the division director. Dollars are summed from your file; only the grouping, shares, and language are proposed.")), status === "thinking" && /*#__PURE__*/React.createElement(RunStatus, null), live && /*#__PURE__*/React.createElement("div", null, live.division_read && !programs.length && /*#__PURE__*/React.createElement("p", {
-    className: "fade",
+  }, "What comes out is a first draft meant to be argued with in a room with the division director. Dollars are summed from your file; only the grouping, shares, and language are proposed.")), status === "thinking" && renderRunStatus(), live && /*#__PURE__*/React.createElement("div", null, live.division_read && !programs.length && /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 15.5,
       lineHeight: 1.6,
@@ -1872,7 +1871,7 @@ function ProgramLayerBuilder() {
       margin: "0 0 20px"
     }
   }, live.division_read), programs.length > 0 && /*#__PURE__*/React.createElement("div", {
-    className: "card fade",
+    className: "card",
     style: {
       padding: `${narrow ? 14 : 18}px ${pad}px`,
       marginBottom: 20
@@ -2335,7 +2334,7 @@ function ProgramLayerBuilder() {
       lines: p.lines,
       showShare: true
     }))));
-  }), streaming && /*#__PURE__*/React.createElement(SkeletonCard, null), result?.accountabilities_elsewhere?.length > 0 && /*#__PURE__*/React.createElement("section", {
+  }), streaming && renderSkeleton(), result?.accountabilities_elsewhere?.length > 0 && /*#__PURE__*/React.createElement("section", {
     className: "card fade",
     style: {
       borderTop: `4px solid ${C.gold}`,

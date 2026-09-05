@@ -574,8 +574,8 @@ export default function ProgramLayerBuilder() {
   );
   const STAGES = [["reading", "Reading the budget"], ["thinking", "Thinking it through"], ["drafting", "Drafting programs"], ["finishing", "Checking the draft"]];
   const stageIdx = STAGES.findIndex(([k]) => k === stage);
-  const RunStatus = () => (
-    <div className="card fade" style={{ padding: `${narrow ? 14 : 16}px ${pad}px`, marginBottom: 20 }}>
+  const renderRunStatus = () => (
+    <div className="card" style={{ padding: `${narrow ? 14 : 16}px ${pad}px`, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: narrow ? 16 : 18 }}>{progress || "Reading the budget…"}</div>
         <div style={{ fontFamily: sans, fontSize: 12, color: C.grey }}>{items.length} lines · {new Set(items.map((i) => i.cc)).size} costing centers · sent as {sendCount}</div>
@@ -594,7 +594,7 @@ export default function ProgramLayerBuilder() {
       </div>
     </div>
   );
-  const SkeletonCard = () => (
+  const renderSkeleton = () => (
     <section className="card program-card skel" style={{ marginBottom: 20 }}>
       <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr auto", gap: 20 }}>
         <div><div className="sk" style={{ width: 90, height: 10, marginBottom: 10 }} /><div className="sk" style={{ width: "55%", height: 22, marginBottom: 10 }} /><div className="sk" style={{ width: "92%", height: 12, marginBottom: 6 }} /><div className="sk" style={{ width: "70%", height: 12 }} /></div>
@@ -709,13 +709,13 @@ export default function ProgramLayerBuilder() {
             </div>
           )}
 
-          {status === "thinking" && <RunStatus />}
+          {status === "thinking" && renderRunStatus()}
 
           {live && (
             <div>
               {/* overview: stats, coverage bar, one-line read, program index */}
-              {live.division_read && !programs.length && <p className="fade" style={{ fontSize: 15.5, lineHeight: 1.6, maxWidth: 640, margin: "0 0 20px" }}>{live.division_read}</p>}
-              {programs.length > 0 && <div className="card fade" style={{ padding: `${narrow ? 14 : 18}px ${pad}px`, marginBottom: 20 }}>
+              {live.division_read && !programs.length && <p style={{ fontSize: 15.5, lineHeight: 1.6, maxWidth: 640, margin: "0 0 20px" }}>{live.division_read}</p>}
+              {programs.length > 0 && <div className="card" style={{ padding: `${narrow ? 14 : 18}px ${pad}px`, marginBottom: 20 }}>
                 <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)", gap: narrow ? 10 : 16, marginBottom: 14 }}>
                   {[[`${programs.length}`, "programs"], [money(total), "in this budget"], [programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1), "FTE"], [`${Math.round(coverage * 100)}%`, streaming ? "mapped so far" : "mapped"]].map(([v, l]) => (
                     <div key={l}><div style={{ fontSize: narrow ? 20 : 24, lineHeight: 1.1 }}>{v}</div><div style={{ fontFamily: sans, fontSize: 11.5, color: C.grey, marginTop: 3 }}>{l}</div></div>
@@ -838,7 +838,7 @@ export default function ProgramLayerBuilder() {
                 );
               })}
 
-              {streaming && <SkeletonCard />}
+              {streaming && renderSkeleton()}
 
               {result?.accountabilities_elsewhere?.length > 0 && (
                 <section className="card fade" style={{ borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `16px ${pad}px` }}>
