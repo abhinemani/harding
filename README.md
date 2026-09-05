@@ -1,1 +1,1 @@
-# harding
+# Harding — strategic budgeting assistant

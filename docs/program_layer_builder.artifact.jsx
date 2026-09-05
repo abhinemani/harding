@@ -448,7 +448,7 @@ export default function ProgramLayerBuilder() {
   .card.plain { padding: 14px 20px; } .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; font: 13px Arial, Helvetica, sans-serif; }
   @media print { .wrap { padding: 0; max-width: none; } }
 </style></head><body><div class="wrap">
-  <div class="mast"><div class="kick">Line of Sight · program layer builder</div><h1>${esc(division || "Division")}: proposed program layer</h1>
+  <div class="mast"><div class="kick">Harding · strategic budgeting assistant · Line of Sight</div><h1>${esc(division || "Division")}: proposed program layer</h1>
     <p>Pre-decisional draft to the County Program Standard · ${today} · ${money(total)} across ${programs.length} programs and ${programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE · ${Math.round(coverage * 100)}% of budget mapped · ${esc(facingLabel(result.orientation))}</p></div>
   <div class="cover">${sorted.filter((p) => p.cost > 0).map((p, i) => `<span style="width:${Math.max(p.share * 100, 0.4)}%;background:${i % 2 ? C.maroonDark : C.maroon}"></span>`).join("")}${unassigned.length ? `<span style="flex:1;background:${C.gold}"></span>` : ""}</div>
   <p>${esc(result.division_read)}</p>
@@ -645,8 +645,12 @@ export default function ProgramLayerBuilder() {
             <span style={{ display: "block", width: 11, height: 11, borderLeft: `3px solid ${C.maroon}`, borderBottom: `3px solid ${C.maroon}`, marginTop: -3, marginLeft: 2 }} />
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div style={{ fontFamily: sans, fontSize: narrow ? 13 : 14, fontWeight: "bold", letterSpacing: 0.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Program Layer Builder</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 10, whiteSpace: "nowrap", overflow: "hidden" }}>
+              <span style={{ fontFamily: serif, fontSize: narrow ? 17 : 19, letterSpacing: 0.3 }}>Harding</span>
+              {!narrow && <span style={{ fontFamily: sans, fontSize: 11.5, opacity: 0.75, letterSpacing: 0.4, textTransform: "uppercase" }}>Strategic budgeting assistant</span>}
+            </div>
             {(division || fileName) && <div style={{ fontFamily: sans, fontSize: 11.5, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{division || fileName}</div>}
+            {narrow && !(division || fileName) && <div style={{ fontFamily: sans, fontSize: 11, opacity: 0.75, letterSpacing: 0.4, textTransform: "uppercase" }}>Strategic budgeting assistant</div>}
           </div>
           {status === "thinking" && <span className="pill" style={{ background: "rgba(0,0,0,0.18)" }}><span className="spin" />{narrow ? "Working" : STAGES[Math.max(stageIdx, 0)][1]}</span>}
           {status === "done" && !narrow && <span className="pill" style={{ background: "rgba(201,156,28,0.22)", color: "#F6E7B8" }}>Draft ready</span>}

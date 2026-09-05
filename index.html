@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Program layer builder — Line of Sight</title><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en"><head><meta charset="utf-8"><title>Harding — strategic budgeting assistant</title><meta name="viewport" content="width=device-width, initial-scale=1">
 <style>html,body{margin:0} #root{min-height:100vh}</style></head>
 <body><div id="root"></div>
 <script>
@@ -1050,7 +1050,7 @@ function ProgramLayerBuilder() {
   .card.plain { padding: 14px 20px; } .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; font: 13px Arial, Helvetica, sans-serif; }
   @media print { .wrap { padding: 0; max-width: none; } }
 </style></head><body><div class="wrap">
-  <div class="mast"><div class="kick">Line of Sight · program layer builder</div><h1>${esc(division || "Division")}: proposed program layer</h1>
+  <div class="mast"><div class="kick">Harding · strategic budgeting assistant · Line of Sight</div><h1>${esc(division || "Division")}: proposed program layer</h1>
     <p>Pre-decisional draft to the County Program Standard · ${today} · ${money(total)} across ${programs.length} programs and ${programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE · ${Math.round(coverage * 100)}% of budget mapped · ${esc(facingLabel(result.orientation))}</p></div>
   <div class="cover">${sorted.filter(p => p.cost > 0).map((p, i) => `<span style="width:${Math.max(p.share * 100, 0.4)}%;background:${i % 2 ? C.maroonDark : C.maroon}"></span>`).join("")}${unassigned.length ? `<span style="flex:1;background:${C.gold}"></span>` : ""}</div>
   <p>${esc(result.division_read)}</p>
@@ -1596,15 +1596,27 @@ function ProgramLayerBuilder() {
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: sans,
-      fontSize: narrow ? 13 : 14,
-      fontWeight: "bold",
-      letterSpacing: 0.2,
+      display: "flex",
+      alignItems: "baseline",
+      gap: 10,
       whiteSpace: "nowrap",
-      overflow: "hidden",
-      textOverflow: "ellipsis"
+      overflow: "hidden"
     }
-  }, "Program Layer Builder"), (division || fileName) && /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: serif,
+      fontSize: narrow ? 17 : 19,
+      letterSpacing: 0.3
+    }
+  }, "Harding"), !narrow && /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11.5,
+      opacity: 0.75,
+      letterSpacing: 0.4,
+      textTransform: "uppercase"
+    }
+  }, "Strategic budgeting assistant")), (division || fileName) && /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: sans,
       fontSize: 11.5,
@@ -1613,7 +1625,15 @@ function ProgramLayerBuilder() {
       overflow: "hidden",
       textOverflow: "ellipsis"
     }
-  }, division || fileName)), status === "thinking" && /*#__PURE__*/React.createElement("span", {
+  }, division || fileName), narrow && !(division || fileName) && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11,
+      opacity: 0.75,
+      letterSpacing: 0.4,
+      textTransform: "uppercase"
+    }
+  }, "Strategic budgeting assistant")), status === "thinking" && /*#__PURE__*/React.createElement("span", {
     className: "pill",
     style: {
       background: "rgba(0,0,0,0.18)"
