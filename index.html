@@ -594,6 +594,23 @@ function ProgramLayerBuilder() {
   const [setupOpen, setSetupOpen] = useState(true);
   const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
+  const RUNS_KEY = "harding_runs";
+  const [runs, setRuns] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(RUNS_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [loaded, setLoaded] = useState(null); // a saved run currently open, overriding the file-derived data
+  const persistRuns = list => {
+    setRuns(list);
+    try {
+      localStorage.setItem(RUNS_KEY, JSON.stringify(list));
+    } catch (e) {
+      setError("Couldn't save the run: browser storage is full. Delete some saved runs.");
+    }
+  };
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [open, setOpen] = useState({});
@@ -632,6 +649,8 @@ function ProgramLayerBuilder() {
       }
       const hdrs = Object.keys(data[0] || {});
       const g = guessColumns(hdrs);
+      setLoaded(null);
+      setResult(null);
       setHeaders(hdrs);
       setRows(data);
       setCols(g);
@@ -645,7 +664,7 @@ function ProgramLayerBuilder() {
       setStatus("error");
     }
   }
-  const items = useMemo(() => {
+  const computedItems = useMemo(() => {
     if (!rows.length || !cols.amt || !cols.gl && !cols.cc) return [];
     const out = [];
     rows.forEach((r, i) => {
@@ -669,7 +688,8 @@ function ProgramLayerBuilder() {
     });
     return out;
   }, [rows, cols]);
-  const recoveries = useMemo(() => {
+  const items = loaded ? loaded.items : computedItems;
+  const computedRecoveries = useMemo(() => {
     if (!rows.length || !cols.code) return [];
     return rows.map(r => ({
       code: norm(r[cols.code]),
@@ -678,12 +698,13 @@ function ProgramLayerBuilder() {
       amt: parseAmount(r[cols.amt])
     })).filter(x => x.code.startsWith("6") && x.amt);
   }, [rows, cols]);
+  const recoveries = loaded ? loaded.recoveries : computedRecoveries;
   const recoveryTotal = recoveries.reduce((s, x) => s + x.amt, 0);
   const total = useMemo(() => items.reduce((s, it) => s + it.amt, 0), [items]);
   const personnelShare = useMemo(() => total ? items.filter(i => i.personnel).reduce((s, i) => s + i.amt, 0) / total : 0, [items, total]);
-  const zeroCount = rows.length - items.length;
+  const zeroCount = loaded ? loaded.zeroCount : rows.length - items.length;
   const baseName = cc => cc.replace(/\b(FY ?\d{2,4}|20\d{2}|Rd ?#?\d+|-?New#|- ?Copy)\b/gi, "").replace(/[\s\-#]+$/g, "").replace(/\s{2,}/g, " ").trim();
-  const emptyCenters = useMemo(() => {
+  const computedEmpty = useMemo(() => {
     if (!rows.length || !cols.cc) return [];
     const funded = new Set(items.map(i => baseName(i.cc)));
     const seen = new Set();
@@ -693,6 +714,7 @@ function ProgramLayerBuilder() {
     });
     return [...seen].slice(0, 40);
   }, [rows, cols, items]);
+  const emptyCenters = loaded ? loaded.emptyCenters : computedEmpty;
   const headcount = useMemo(() => Math.max(1, Math.round(items.filter(i => i.personnel).reduce((s, i) => s + i.amt, 0) / 110000)), [items]);
   async function analyze() {
     if (!items.length) return;
@@ -858,6 +880,29 @@ function ProgramLayerBuilder() {
       setStatus("done");
       setStage("done");
       if (narrow) setSetupOpen(false);
+      {
+        const run = {
+          id: `${Date.now()}`,
+          savedAt: new Date().toISOString(),
+          division,
+          fileName,
+          model,
+          effort: supportsEffort ? effort : null,
+          total,
+          programCount: (parsed.programs || []).length,
+          items,
+          recoveries,
+          emptyCenters,
+          zeroCount,
+          headcount,
+          personnelShare,
+          sendCount: send.length,
+          pools,
+          result: parsed
+        };
+        persistRuns([run, ...runs].slice(0, 40));
+        setLoaded(run);
+      }
     } catch (err) {
       setError(err?.message || "The analysis didn't come back as expected.");
       setStatus("error");
@@ -1139,6 +1184,50 @@ function ProgramLayerBuilder() {
   }
   function exportMarkdown() {
     download(`${slug()}_program_layer.md`, buildMarkdown(), "text/markdown");
+  }
+  function openRun(run) {
+    setLoaded(run);
+    setPools(run.pools || {});
+    setDivision(run.division || "");
+    setFileName(run.fileName || "");
+    setHeaders([]);
+    setRows([]);
+    setResult(run.result);
+    setDraft(null);
+    setError("");
+    setStatus("done");
+    setStage("done");
+    setSendCount(run.sendCount || 0);
+    if (narrow) setSetupOpen(false);
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth"
+    });
+  }
+  function deleteRun(id) {
+    persistRuns(runs.filter(r => r.id !== id));
+    if (loaded?.id === id) {
+      setLoaded(null);
+      setResult(null);
+      setStatus("idle");
+      setStage("idle");
+    }
+  }
+  function exportRuns() {
+    download(`harding_runs_${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify(runs, null, 1), "application/json");
+  }
+  async function importRuns(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    try {
+      const incoming = JSON.parse(await f.text());
+      const list = Array.isArray(incoming) ? incoming : [incoming];
+      const have = new Set(runs.map(r => r.id));
+      persistRuns([...list.filter(r => r && r.id && r.result && !have.has(r.id)), ...runs].slice(0, 40));
+    } catch {
+      setError("That file isn't a Harding runs export.");
+    }
+    e.target.value = "";
   }
   const ready = items.length > 0 && status !== "thinking";
 
@@ -1718,7 +1807,10 @@ function ProgramLayerBuilder() {
       background: "rgba(201,156,28,0.22)",
       color: "#F6E7B8"
     }
-  }, "Draft ready"), narrow && result && /*#__PURE__*/React.createElement("button", {
+  }, loaded ? `Saved ${new Date(loaded.savedAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric"
+  })}` : "Draft ready"), narrow && result && /*#__PURE__*/React.createElement("button", {
     className: "btn-ghost",
     style: {
       padding: "6px 10px"
@@ -1935,7 +2027,132 @@ function ProgramLayerBuilder() {
       borderLeft: `3px solid ${C.maroon}`,
       paddingLeft: 10
     }
-  }, error)), /*#__PURE__*/React.createElement("main", {
+  }, error), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: `1px solid ${C.line}`,
+      paddingTop: 14
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "baseline",
+      marginBottom: 8
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      color: C.grey
+    }
+  }, "Saved runs", runs.length ? ` · ${runs.length}` : ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11,
+      display: "flex",
+      gap: 10
+    }
+  }, runs.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: exportRuns,
+    style: {
+      background: "none",
+      border: "none",
+      padding: 0,
+      color: C.maroon,
+      cursor: "pointer",
+      textDecoration: "underline",
+      font: "inherit"
+    }
+  }, "Export"), /*#__PURE__*/React.createElement("label", {
+    style: {
+      color: C.maroon,
+      cursor: "pointer",
+      textDecoration: "underline"
+    }
+  }, "Import", /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    accept: ".json",
+    onChange: importRuns,
+    style: {
+      display: "none"
+    }
+  })))), runs.length === 0 && /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 12,
+      color: C.grey,
+      lineHeight: 1.5
+    }
+  }, "Every completed run is kept in this browser so you can reopen it without calling the API again."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      flexDirection: "column",
+      gap: 4
+    }
+  }, runs.map(r => {
+    const active = loaded?.id === r.id;
+    const d = new Date(r.savedAt);
+    return /*#__PURE__*/React.createElement("div", {
+      key: r.id,
+      style: {
+        display: "grid",
+        gridTemplateColumns: "1fr auto",
+        gap: 8,
+        alignItems: "center",
+        padding: "7px 9px",
+        borderRadius: 4,
+        background: active ? C.paper : "transparent",
+        borderLeft: `3px solid ${active ? C.maroon : "transparent"}`
+      }
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => openRun(r),
+      style: {
+        background: "none",
+        border: "none",
+        padding: 0,
+        textAlign: "left",
+        cursor: "pointer",
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: serif,
+        fontSize: 14,
+        color: C.ink,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis"
+      }
+    }, r.division || r.fileName || "Untitled"), /*#__PURE__*/React.createElement("div", {
+      style: {
+        fontFamily: sans,
+        fontSize: 11,
+        color: C.grey
+      }
+    }, d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    }), " ", d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit"
+    }), " · ", r.programCount, " programs · ", money(r.total), r.model ? ` · ${r.model.replace("claude-", "").replace(/-\d{8}$/, "")}` : "")), /*#__PURE__*/React.createElement("button", {
+      title: "Delete this run",
+      onClick: () => {
+        if (window.confirm(`Delete the saved run for ${r.division || "this division"}?`)) deleteRun(r.id);
+      },
+      style: {
+        background: "none",
+        border: "none",
+        color: C.grey,
+        cursor: "pointer",
+        fontSize: 16,
+        lineHeight: 1,
+        padding: "2px 4px"
+      }
+    }, "×"));
+  })))), /*#__PURE__*/React.createElement("main", {
     style: {
       minWidth: 0
     }

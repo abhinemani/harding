@@ -30,6 +30,10 @@ The two files differ in exactly these ways, and no others should creep in:
 
 Everything else — the prompt, the Program Standard logic, the costing/allocation math, the card layout, the responsive breakpoints, the budget-office checks — should be identical between the two. If you change the prompt or the UI, change it in the Artifact first (it's readable JSX) and port the same diff into the compiled block in `index.html`.
 
+## Saved runs (local build only)
+
+`index.html` persists each completed run to `localStorage` under the key `harding_runs` (an array, newest first, capped at 40). A run record holds everything needed to re-render without the original file: `items`, `recoveries`, `emptyCenters`, `zeroCount`, `pools`, `sendCount`, and the parsed `result`, plus metadata. Opening a run sets a `loaded` override that takes precedence over the file-derived memos (`computedItems` → `items`, etc.); uploading a new file clears it. The Artifact build has none of this, since Artifacts cannot use browser storage.
+
 ## The prompt
 
 The prompt lives in `buildPrompt()` near the top of the app logic. It encodes:
