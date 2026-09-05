@@ -412,7 +412,11 @@ function buildPrompt(division, items, total, personnelShare, emptyCenters, headc
   const lines = items.map(it => `${it.id}\t${it.fund || ""}\t${it.cc}\t${it.code}\t${it.desc}\t${Math.round(it.amt)}`).join("\n");
   return `You are a public-finance analyst helping Frederick County, Maryland (pop. ~290,000, ~$1.55B operating budget) add a program layer on top of its line-item budget. The general ledger is untouched; a program is an additive classification. Your job is to draft this division's programs to the County's Program Standard, reproduced below. Follow it strictly on definition, boundaries, wording, and measures.
 
-Division: ${division || "(unnamed)"}. Infer what it does from its name and the costing center and account names, using your knowledge of how Maryland county governments are organized. Decide whether it is external-facing (residents are the beneficiaries) or internal (other divisions or employees are). Internal divisions state a service level and the work it enables; do not force them into public-outcome language.
+Division: ${division || "(unnamed)"}. Infer what it does from its name and the costing center and account names, using your knowledge of how Maryland county governments are organized. Decide whether it is external-facing (residents are the beneficiaries) or internal (other divisions or employees are), and decide the same for each program, since some divisions hold both.
+
+The County's model splits evidence by orientation, because a single standard fails everyone:
+- INTERNAL programs are budgeted on PERFORMANCE — service measures the division itself controls: timeliness, reliability, backlog, cost per transaction (HR's time-to-fill, cost per hire; IT's incidents resolved within target). Do not borrow public outcomes for them.
+- EXTERNAL programs are budgeted on OUTCOMES — the community result the program exists to advance (emissions reduced, older adults remaining at home, pollutant loads declining). State the program's intended contribution; no one pretends a single program controls a community-wide condition.
 
 Line items — id, fund code, costing center, GL account number, GL account name, FY adopted budget (revenue, zero, and 6xxxx cost-recovery lines already removed). Fund 10 is the General Fund; 2x funds are grants; other funds are usually enterprise or internal service funds that bill customers for a discrete service and should generally be their own program. Total: ${Math.round(total)}. Personnel accounts (50xxx) are ${Math.round(personnelShare * 100)}% of the total; at Frederick County's average loaded cost that implies roughly ${headcount} staff.
 ${lines}
@@ -432,9 +436,9 @@ What divisions get wrong when they self-inventory (all observed in Frederick): t
 
 Program statement. One sentence to a fixed grammar: "[Name] delivers [service] to [beneficiary] so that [result], at [$ cost] and [FTE] in FY26." Name the program for the service, never the office, statute, or funding stream ("Home-Delivered and Congregate Nutrition", not "Title III-C"). Avoid effort verbs — support, manage, oversee, coordinate, administer, facilitate, maintain — except when the object is a physical asset; use verbs of delivery: provides, serves, replaces, treats, houses, trains, inspects, restores. The result clause states the condition that changes. "So that the County remains in compliance" is a constraint, not a result; where compliance is the purpose, state the condition it protects. Omit the "at $ and FTE" tail — the app computes and appends it.
 
-Measures. Exactly three per program, of three kinds: a RESULT measure (did the beneficiary's condition change), a VOLUME measure (how much was delivered), and a UNIT COST (cost ÷ volume, using the volume measure). Each must come from a system that already produces it (Munis, HRIS, applicant tracking, CRM, work orders, permit and inspection systems, carrier or actuary reports, state reports); if the number does not exist today, name the closest proxy and rate exists_today honestly. A deadline is not a measure.
+Measures. Exactly three per program, of three kinds: a RESULT measure — for an external program, the community outcome it contributes to; for an internal program, the service level it controls (timeliness, reliability, quality) — a VOLUME measure (how much was delivered), and a UNIT COST (cost ÷ volume, using the volume measure). Each must come from a system that already produces it (Munis, HRIS, applicant tracking, CRM, work orders, permit and inspection systems, carrier or actuary reports, state reports); if the number does not exist today, name the closest proxy and rate exists_today honestly. A deadline is not a measure.
 
-Mandate status: one of "required by law" (cite it), "required to receive funding" (name the source), or "discretionary". Strategic linkage: the specific Livable Frederick element, adopted plan, or Executive priority, or "none identified" — an honest blank beats a stretch. The twenty percent question: what specifically stops at −20%, and what becomes possible at +20% — two concrete sentences, in specifics not generalities.
+Mandate status: one of "required by law" (cite it), "required to receive funding" (name the source), or "discretionary". Priority alignment: County leadership will set 5–7 priorities anchored in Livable Frederick; until then, name the specific Livable Frederick element, adopted plan, or Executive priority the program advances, and rate alignment as "direct" (the program exists to move it), "contributes" (it helps, among other things), or "none" (an essential or mandated service that aligns to no priority — a legitimate and important answer, since the point is to see which resources could realistically be redirected and which cannot). An honest "none" beats a stretch. The twenty percent question: what specifically stops at −20%, and what becomes possible at +20% — two concrete sentences, in specifics not generalities.
 
 COSTING
 - Assign a line WHOLLY to one program via item_ids, or, if genuinely shared (salaries, benefits, telephone, supplies in one costing center), split it across programs via allocations with shares. Never both for the same line.
@@ -450,6 +454,7 @@ Keep strings terse: statement under 35 words, measures under 10, sources under 5
   "programs": [
     {
       "name": "service-named program",
+      "facing": "external" | "internal",
       "statement": "[Name] delivers [service] to [beneficiary] so that [result]",
       "beneficiary": "who, roughly how many, where",
       "fte": 4.25,
@@ -463,6 +468,7 @@ Keep strings terse: statement under 35 words, measures under 10, sources under 5
       },
       "mandate": {"status": "required by law"|"required to receive funding"|"discretionary", "citation": "statute, funding source, or empty"},
       "strategic_linkage": "specific element or 'none identified'",
+      "alignment": "direct" | "contributes" | "none",
       "twenty_percent": {"minus": "what stops at −20%", "plus": "what becomes possible at +20%"},
       "is_admin": false
     }
@@ -913,15 +919,19 @@ function ProgramLayerBuilder() {
       const cell = (k, sub, x) => `<div><div class="mh"><b>${k}</b> ${sub}</div>${x?.metric ? `<div class="m">${dot(x.exists_today)}<div><div>${esc(x.metric)}</div><div class="src">${esc(x.source)}</div></div></div>` : `<div class="src" style="color:${C.maroon}">Not proposed.</div>`}</div>`;
       const lines = p.lines.length ? `<div class="build"><div class="lbl">How ${money(p.cost)} is built</div>${p.allocation_note ? `<p class="note">${esc(p.allocation_note)}</p>` : ""}
         <table>${p.lines.map(l => `<tr><td class="g">${esc(l.code)}</td><td>${esc(l.desc)}${l.cc && l.cc !== l.desc ? ` <span class="g">· ${esc(l.cc)}</span>` : ""}</td><td class="g r">${l.share < 1 ? `${Math.round(l.share * 100)}% of ${money(l.amt)}` : ""}</td><td class="r">${money(l.alloc)}</td></tr>`).join("")}</table></div>` : "";
-      const none = /none identified/i.test(p.strategic_linkage || "");
+      const none = p.alignment === "none" || /none identified/i.test(p.strategic_linkage || "");
+      const rk = resultKind(p.facing || result.orientation);
+      const direct = p.lines.filter(l => l.share >= 1).reduce((a, l) => a + l.alloc, 0),
+        alloc = p.cost - direct;
+      const pack = `<div class="pack"><span class="g">Evidence pack</span>${packItems(p).map(([k, ok]) => `<span style="color:${ok ? C.ink : C.maroon}"><b style="color:${ok ? "#3D6B3A" : C.maroon}">${ok ? "●" : "○"}</b> ${k}</span>`).join("")}</div>`;
       return `<section class="card${p.is_admin ? " admin" : ""}">
         <div class="head"><div><div class="lbl">Program ${i + 1} of ${sorted.length}${p.is_admin ? " · administration" : ""}</div><h2>${esc(p.name)}</h2>
           <p class="stmt">${esc(p.statement)}, at ${money(p.cost)} and ${Number(p.fte || 0).toFixed(2)} FTE in FY26.</p>
-          <div class="chips">${p.mandate?.status ? `<span class="chip ${p.mandate.status === "discretionary" ? "gold" : ""}">${esc(p.mandate.status)}${p.mandate.citation ? ` · ${esc(p.mandate.citation)}` : ""}</span>` : ""}${p.strategic_linkage ? `<span class="chip ${none ? "grey" : "maroon"}">${esc(p.strategic_linkage)}</span>` : ""}</div></div>
-          <div class="cost"><div class="big">${money(p.cost)}</div><div class="lbl">${Math.round(p.share * 100)}% of this budget · ${Number(p.fte || 0).toFixed(2)} FTE</div>${strip}</div></div>
+          <div class="chips">${p.facing ? `<span class="chip ${p.facing === "internal" ? "teal" : "maroon"}">${esc(facingLabel(p.facing))}</span>` : ""}${p.mandate?.status ? `<span class="chip ${p.mandate.status === "discretionary" ? "gold" : ""}">${esc(p.mandate.status)}${p.mandate.citation ? ` · ${esc(p.mandate.citation)}` : ""}</span>` : ""}${p.strategic_linkage ? `<span class="chip ${none ? "grey" : p.alignment === "direct" ? "gold" : "maroon"}">${p.alignment && !none ? esc(p.alignment) + " · " : ""}${esc(p.strategic_linkage)}</span>` : ""}</div></div>
+          <div class="cost"><div class="big">${money(p.cost)}</div><div class="lbl">${Math.round(p.share * 100)}% of this budget · ${Number(p.fte || 0).toFixed(2)} FTE</div>${alloc > 0 && direct > 0 ? `<div class="lbl">${money(direct)} direct + ${money(alloc)} allocated</div>` : ""}${strip}</div></div>
         ${p.beneficiary || p.contributing_divisions ? `<div class="meta">${p.beneficiary ? `<div><span class="g">Beneficiary · </span>${esc(p.beneficiary)}</div>` : ""}${p.contributing_divisions ? `<div><span class="g">Contributing divisions · </span>${esc(p.contributing_divisions)}</div>` : ""}</div>` : ""}
-        <div class="measures three">${cell("Result", "did the condition change", m.result)}${cell("Volume", "how much was delivered", m.volume)}${cell("Unit cost", "cost ÷ volume", m.unit_cost)}</div>
-        <div class="twenty"><div><span class="lbl" style="color:${C.maroon}">At −20%</span><div>${esc(p.twenty_percent?.minus || "—")}</div></div><div><span class="lbl" style="color:${C.gold}">At +20%</span><div>${esc(p.twenty_percent?.plus || "—")}</div></div></div>${lines}</section>`;
+        <div class="measures three">${cell(rk[0], rk[1], m.result)}${cell("Volume", "how much was delivered", m.volume)}${cell("Unit cost", "cost ÷ volume", m.unit_cost)}</div>
+        <div class="twenty"><div><span class="lbl" style="color:${C.maroon}">At −20%</span><div>${esc(p.twenty_percent?.minus || "—")}</div></div><div><span class="lbl" style="color:${C.gold}">At +20%</span><div>${esc(p.twenty_percent?.plus || "—")}</div></div></div>${pack}${lines}</section>`;
     }).join("\n");
     const elsewhere = result.accountabilities_elsewhere?.length ? `<section class="card un"><div class="lbl">Accountabilities funded elsewhere</div><p class="note">Real responsibilities of this division whose cost sits outside this budget; noted, not costed here.</p><table>${result.accountabilities_elsewhere.map(a => `<tr><td style="font-family:Georgia,serif;font-size:14px;white-space:nowrap">${esc(a.name)}</td><td class="gold" style="white-space:nowrap">${esc(a.where)}</td><td class="g">${esc(a.note || "")}</td></tr>`).join("")}</table></section>` : "";
     const checkBlock = `<section class="card plain"><div class="lbl">Budget office check · ${checks.filter(c => c.ok).length} of ${checks.length} pass</div><div class="checks">${checks.map(c => `<div><b style="color:${c.ok ? "#3D6B3A" : C.maroon}">${c.ok ? "✓" : "✗"}</b> <span${c.ok ? ' class="g"' : ""}>${esc(c.text)}</span></div>`).join("")}</div></section>`;
@@ -961,15 +971,16 @@ function ProgramLayerBuilder() {
   .meta { padding: 0 20px 12px; display: flex; gap: 24px; font: 13px Arial, Helvetica, sans-serif; } .card.admin { border-top-color: ${C.grey}; }
   .measures.three { grid-template-columns: 1fr 1fr 1fr; } .measures.three > div { border-right: 1px solid ${C.line}; } .measures.three > div:last-child { border-right: none; }
   .twenty { border-top: 1px solid ${C.line}; background: ${C.paper}; padding: 12px 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; font-size: 14px; } .twenty .lbl { display: block; margin-bottom: 3px; }
+  .chips .chip.teal { border-color: #2E7D6E; color: #2E7D6E; } .pack { border-top: 1px solid ${C.line}; padding: 8px 20px; display: flex; gap: 14px; font: 11px Arial, Helvetica, sans-serif; }
   .card.plain { padding: 14px 20px; } .checks { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 20px; font: 13px Arial, Helvetica, sans-serif; }
   @media print { .wrap { padding: 0; max-width: none; } }
 </style></head><body><div class="wrap">
   <div class="mast"><div class="kick">Line of Sight · program layer builder</div><h1>${esc(division || "Division")}: proposed program layer</h1>
-    <p>Pre-decisional draft to the County Program Standard · ${today} · ${money(total)} across ${programs.length} programs and ${programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE · ${Math.round(coverage * 100)}% of budget mapped · ${esc(result.orientation)}-facing</p></div>
+    <p>Pre-decisional draft to the County Program Standard · ${today} · ${money(total)} across ${programs.length} programs and ${programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE · ${Math.round(coverage * 100)}% of budget mapped · ${esc(facingLabel(result.orientation))}</p></div>
   <div class="cover">${sorted.filter(p => p.cost > 0).map((p, i) => `<span style="width:${Math.max(p.share * 100, 0.4)}%;background:${i % 2 ? C.maroonDark : C.maroon}"></span>`).join("")}${unassigned.length ? `<span style="flex:1;background:${C.gold}"></span>` : ""}</div>
   <p>${esc(result.division_read)}</p>
   ${index}
-  <div class="legend"><span>Data readiness:</span><span>${dot("likely")}exists today</span><span>${dot("possible")}could be assembled</span><span>${dot("unlikely")}would need new collection</span></div>
+  <div class="legend"><span>Result measures are outcomes for external programs and service levels for internal ones.</span></div><div class="legend"><span>Data readiness:</span><span>${dot("likely")}exists today</span><span>${dot("possible")}could be assembled</span><span>${dot("unlikely")}would need new collection</span></div>
   ${cards}${elsewhere}${un}${checkBlock}${tail}
   <div class="foot">Dollars are summed from the FY adopted budget export; the grouping, shares, and measures are proposed for discussion with the division. Public Works LLC with Funkhouser &amp; Associates for Frederick County.</div>
 </div></body></html>`;
@@ -1012,15 +1023,16 @@ function ProgramLayerBuilder() {
     sorted.forEach(p => L.push(`| ${p.name} | ${money(p.cost)} | ${Math.round(p.share * 100)}% | ${Number(p.fte || 0).toFixed(2)} | ${p.mandate?.status || ""} |`));
     sorted.forEach((p, i) => {
       const m = p.measures || {};
-      L.push("", `## ${i + 1}. ${p.name}`, "", `> ${p.statement}, at ${money(p.cost)} and ${Number(p.fte || 0).toFixed(2)} FTE in FY26.`, "");
+      L.push("", `## ${i + 1}. ${p.name}`, "", `_${facingLabel(p.facing || result.orientation)}_`, "", `> ${p.statement}, at ${money(p.cost)} and ${Number(p.fte || 0).toFixed(2)} FTE in FY26.`, "");
       if (p.beneficiary) L.push(`**Beneficiary:** ${p.beneficiary}  `);
       L.push(`**Mandate:** ${p.mandate?.status || "—"}${p.mandate?.citation ? ` — ${p.mandate.citation}` : ""}  `);
-      L.push(`**Strategic linkage:** ${p.strategic_linkage || "none identified"}  `);
+      L.push(`**Priority alignment:** ${p.alignment ? p.alignment + " — " : ""}${p.strategic_linkage || "none identified"}  `);
       if (p.contributing_divisions) L.push(`**Contributing divisions:** ${p.contributing_divisions}  `);
       const comp = composition(p.lines).filter(c => c.amt > 0);
       if (comp.length) L.push(`**Composition:** ${comp.map(c => `${c.label} ${Math.round(c.amt / p.cost * 100)}%`).join(" · ")}`);
       L.push("", "| Measure | | Source | Data |", "|---|---|---|---|");
-      [["Result", m.result], ["Volume", m.volume], ["Unit cost", m.unit_cost]].forEach(([k, x]) => L.push(`| ${k} | ${x?.metric || "—"} | ${x?.source || ""} | ${x?.exists_today || ""} |`));
+      [[resultKind(p.facing || result.orientation)[0], m.result], ["Volume", m.volume], ["Unit cost", m.unit_cost]].forEach(([k, x]) => L.push(`| ${k} | ${x?.metric || "—"} | ${x?.source || ""} | ${x?.exists_today || ""} |`));
+      L.push("", `**Evidence pack:** ${packItems(p).map(([k, ok]) => `${ok ? "●" : "○"} ${k}`).join("  ")}`);
       L.push("", `**At −20%:** ${p.twenty_percent?.minus || "—"}  `, `**At +20%:** ${p.twenty_percent?.plus || "—"}`);
       if (p.lines.length) {
         L.push("", "**How the cost is built**", "");
@@ -1189,6 +1201,9 @@ function ProgramLayerBuilder() {
       marginTop: 2
     }
   }, m.source))));
+  const facingLabel = f => f === "internal" ? "Internal · performance-based" : f === "external" ? "External · outcomes-based" : "Mixed · both";
+  const resultKind = f => f === "internal" ? ["Service level", "timeliness, reliability, quality — what the division controls"] : ["Outcome", "the community result this program contributes to"];
+  const packItems = p => [["Cost", p.cost > 0], ["Reach", !!p.beneficiary], ["Necessity", !!p.twenty_percent?.minus], ["Performance", !!(p.measures?.volume?.metric && p.measures?.unit_cost?.metric)], ["Impact", p.measures?.result?.metric && p.measures?.result?.exists_today !== "unlikely"], ["Statutory", !!p.mandate?.status]];
   const composition = lines => {
     const cats = [{
       label: "Staff",
@@ -1524,7 +1539,7 @@ function ProgramLayerBuilder() {
       color: C.grey,
       marginLeft: 10
     }
-  }, result.orientation, "-facing")), /*#__PURE__*/React.createElement("div", {
+  }, facingLabel(result.orientation))), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: sans,
       fontSize: 13,
@@ -1647,7 +1662,11 @@ function ProgramLayerBuilder() {
     v: "possible"
   }), " could be assembled"), /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement(Dot, {
     v: "unlikely"
-  }), " would need new collection"))), sorted.map((p, idx) => {
+  }), " would need new collection"), /*#__PURE__*/React.createElement("span", {
+    style: {
+      marginLeft: "auto"
+    }
+  }, "Result measures: outcome for external programs, service level for internal."))), sorted.map((p, idx) => {
     const key = p.name;
     const isOpen = open[key] || printing;
     const comp = composition(p.lines);
@@ -1701,7 +1720,15 @@ function ProgramLayerBuilder() {
         flexWrap: "wrap",
         alignItems: "center"
       }
-    }, p.mandate?.status && /*#__PURE__*/React.createElement("span", {
+    }, p.facing && /*#__PURE__*/React.createElement("span", {
+      style: {
+        fontFamily: sans,
+        fontSize: 11,
+        color: p.facing === "internal" ? "#2E7D6E" : C.maroon,
+        border: `1px solid ${p.facing === "internal" ? "#2E7D6E" : C.maroon}`,
+        padding: "2px 8px"
+      }
+    }, facingLabel(p.facing)), p.mandate?.status && /*#__PURE__*/React.createElement("span", {
       title: p.mandate.citation || "",
       style: {
         fontFamily: sans,
@@ -1710,15 +1737,19 @@ function ProgramLayerBuilder() {
         border: `1px solid ${mandateColor}`,
         padding: "2px 8px"
       }
-    }, p.mandate.status, p.mandate.citation ? ` · ${p.mandate.citation}` : ""), p.strategic_linkage && /*#__PURE__*/React.createElement("span", {
-      style: {
-        fontFamily: sans,
-        fontSize: 11,
-        color: /none identified/i.test(p.strategic_linkage) ? C.grey : C.maroon,
-        border: `1px solid ${/none identified/i.test(p.strategic_linkage) ? C.line : C.maroon}`,
-        padding: "2px 8px"
-      }
-    }, p.strategic_linkage))), /*#__PURE__*/React.createElement("div", {
+    }, p.mandate.status, p.mandate.citation ? ` · ${p.mandate.citation}` : ""), p.strategic_linkage && (() => {
+      const none = p.alignment === "none" || /none identified/i.test(p.strategic_linkage);
+      const col = none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon;
+      return /*#__PURE__*/React.createElement("span", {
+        style: {
+          fontFamily: sans,
+          fontSize: 11,
+          color: col,
+          border: `1px solid ${none ? C.line : col}`,
+          padding: "2px 8px"
+        }
+      }, p.alignment && !none ? `${p.alignment} · ` : "", none && p.alignment === "none" && !/none identified/i.test(p.strategic_linkage) ? "not aligned · " : "", p.strategic_linkage);
+    })())), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: narrow ? "left" : "right",
         minWidth: narrow ? 0 : 180,
@@ -1737,7 +1768,25 @@ function ProgramLayerBuilder() {
         color: C.grey,
         marginTop: 4
       }
-    }, Math.round(p.share * 100), "% of this budget · ", Number(p.fte || 0).toFixed(2), " FTE"), /*#__PURE__*/React.createElement("div", {
+    }, Math.round(p.share * 100), "% of this budget · ", Number(p.fte || 0).toFixed(2), " FTE"), (() => {
+      const direct = p.lines.filter(l => l.share >= 1).reduce((a, l) => a + l.alloc, 0);
+      const alloc = p.cost - direct;
+      return alloc > 0 && direct > 0 ? /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontFamily: sans,
+          fontSize: 11,
+          color: C.grey,
+          marginTop: 2
+        }
+      }, money(direct), " direct + ", money(alloc), " allocated") : alloc > 0 ? /*#__PURE__*/React.createElement("div", {
+        style: {
+          fontFamily: sans,
+          fontSize: 11,
+          color: C.grey,
+          marginTop: 2
+        }
+      }, "fully allocated from shared lines") : null;
+    })(), /*#__PURE__*/React.createElement("div", {
       style: {
         marginTop: 10
       }
@@ -1803,8 +1852,8 @@ function ProgramLayerBuilder() {
         gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr"
       }
     }, /*#__PURE__*/React.createElement(MeasureCell, {
-      kind: "Result",
-      sub: "did the condition change",
+      kind: resultKind(p.facing || result.orientation)[0],
+      sub: resultKind(p.facing || result.orientation)[1],
       m: m.result,
       last: narrow
     }), /*#__PURE__*/React.createElement(MeasureCell, {
@@ -1850,7 +1899,29 @@ function ProgramLayerBuilder() {
         fontSize: 14.5,
         lineHeight: 1.5
       }
-    }, p.twenty_percent?.plus || "—"))), p.lines.length > 0 && /*#__PURE__*/React.createElement("div", {
+    }, p.twenty_percent?.plus || "—"))), /*#__PURE__*/React.createElement("div", {
+      style: {
+        borderTop: `1px solid ${C.line}`,
+        padding: `10px ${pad}px`,
+        fontFamily: sans,
+        fontSize: 11,
+        color: C.grey,
+        display: "flex",
+        gap: narrow ? 10 : 16,
+        flexWrap: "wrap",
+        alignItems: "center"
+      }
+    }, /*#__PURE__*/React.createElement("span", null, "Evidence pack"), packItems(p).map(([k, ok]) => /*#__PURE__*/React.createElement("span", {
+      key: k,
+      style: {
+        color: ok ? C.ink : C.maroon
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        color: ok ? "#3D6B3A" : C.maroon,
+        marginRight: 4
+      }
+    }, ok ? "●" : "○"), k))), p.lines.length > 0 && /*#__PURE__*/React.createElement("div", {
       style: {
         borderTop: `1px solid ${C.line}`,
         padding: `12px ${pad}px 16px`
