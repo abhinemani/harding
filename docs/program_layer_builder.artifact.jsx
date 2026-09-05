@@ -82,7 +82,8 @@ Measures. Exactly three per program, of three kinds: a RESULT measure — for an
 Mandate status: one of "required by law" (cite it), "required to receive funding" (name the source), or "discretionary". Priority alignment: County leadership will set 5–7 priorities anchored in Livable Frederick; until then, name the specific Livable Frederick element, adopted plan, or Executive priority the program advances, and rate alignment as "direct" (the program exists to move it), "contributes" (it helps, among other things), or "none" (an essential or mandated service that aligns to no priority — a legitimate and important answer, since the point is to see which resources could realistically be redirected and which cannot). An honest "none" beats a stretch. The twenty percent question: what specifically stops at −20%, and what becomes possible at +20% — two concrete sentences, in specifics not generalities.
 
 COSTING
-- Assign a line WHOLLY to one program via item_ids, or, if genuinely shared (salaries, benefits, telephone, supplies in one costing center), split it across programs via allocations with shares. Never both for the same line.
+- Assign a line WHOLLY to one program via item_ids, or, if genuinely shared (salaries, benefits, telephone, supplies in one costing center), give each program its share of that line in its own "shared" list. A line's shares across all programs should sum to 1. Never put the same line in item_ids and shared.
+- Emit the programs in descending order of cost, largest first, so the reader sees the division's shape early.
 - When most of the budget is personnel in one costing center, the program layer is a staff-time allocation. Propose shares from what a division of this kind spends its people on, sized against the implied headcount; benefits follow salary shares. State the logic in allocation_note as a starting bid for the director to correct. Give fte per program consistent with the shares and the implied headcount, to two decimals.
 - When the file has many costing centers named for grants, titles, or funded services, each is already a program component; roll them up into service programs and allocate the unnamed general-fund center across them. Say which costing centers each program absorbs.
 - If one non-personnel line exceeds a quarter of the budget (a software or subscription pool, a large contract), it is a portfolio bought for several programs. Allocate it provisionally and say in allocation_note that the real split needs the underlying vendor or subscription list; put that in data_requests.
@@ -100,6 +101,7 @@ Keep strings terse: statement under 35 words, measures under 10, sources under 5
       "beneficiary": "who, roughly how many, where",
       "fte": 4.25,
       "item_ids": [3, 9],
+      "shared": [{"item_id": 7, "share": 0.4}],
       "allocation_note": "",
       "contributing_divisions": "",
       "measures": {
@@ -114,13 +116,37 @@ Keep strings terse: statement under 35 words, measures under 10, sources under 5
       "is_admin": false
     }
   ],
-  "allocations": [{"item_id": 7, "shares": [0.4, 0.3, 0.3]}],
   "accountabilities_elsewhere": [{"name": "...", "where": "CIP | grants | non-departmental | another division | vendor/carrier", "note": "one line"}],
   "unassigned_ids": [],
   "cautions": ["at most 3 short notes on where this is a judgment call or the data is thin"],
   "data_requests": ["at most 3 specific things to ask the division for that would turn provisional allocations into real ones"]
 }
-"shares" align with the programs array in order and sum to 1.`;
+Emit "division_read" and "orientation" first, then "programs".`;
+}
+
+// Pull whatever is complete out of a partially streamed JSON reply: the one-line read, orientation, and every
+// program object whose closing brace has arrived. Respects strings so braces inside text don't fool it.
+function parsePartial(text) {
+  const out = { division_read: "", orientation: "", programs: [] };
+  const dr = text.match(/"division_read"\s*:\s*"((?:[^"\\]|\\.)*)"/); if (dr) { try { out.division_read = JSON.parse(`"${dr[1]}"`); } catch { out.division_read = dr[1]; } }
+  const or = text.match(/"orientation"\s*:\s*"(external|internal|mixed)"/); if (or) out.orientation = or[1];
+  const start = text.indexOf('"programs"'); if (start < 0) return out;
+  let i = text.indexOf("[", start); if (i < 0) return out;
+  i += 1;
+  while (i < text.length) {
+    while (i < text.length && /[\s,]/.test(text[i])) i++;
+    if (text[i] !== "{") break;
+    let depth = 0, inStr = false, esc = false, j = i;
+    for (; j < text.length; j++) {
+      const ch = text[j];
+      if (inStr) { if (esc) esc = false; else if (ch === "\\") esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true; else if (ch === "{") depth++; else if (ch === "}") { depth--; if (depth === 0) break; }
+    }
+    if (depth !== 0) break; // this program is still arriving
+    try { out.programs.push(JSON.parse(text.slice(i, j + 1))); } catch { break; }
+    i = j + 1;
+  }
+  return out;
 }
 
 // ---- component -----------------------------------------------------------
@@ -132,6 +158,8 @@ export default function ProgramLayerBuilder() {
   const [division, setDivision] = useState("");
   const [status, setStatus] = useState("idle");
   const [progress, setProgress] = useState("");
+  const [draft, setDraft] = useState(null);
+  const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
   const [mdText, setMdText] = useState("");
   const [error, setError] = useState("");
@@ -209,10 +237,11 @@ export default function ProgramLayerBuilder() {
 
   async function analyze() {
     if (!items.length) return;
-    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress("");
+    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress(""); setDraft(null);
     // Compress within each costing center when the file is large: personnel pooled, small operating lines pooled, big lines kept.
     // Pools carry negative ids; the reply's references to them are expanded back to the real lines below.
     let send = []; const pools = {};
+    setPools(pools);
     {
       let pid = -1;
       const byCc = {}; items.forEach((it) => { (byCc[it.cc] ||= []).push(it); });
@@ -238,7 +267,7 @@ export default function ProgramLayerBuilder() {
           messages: [{ role: "user", content: buildPrompt(division, send, total, personnelShare, emptyCenters, headcount, recoveries) + extra }] }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(`API ${res.status}: ${err.error?.message || res.statusText}`); }
-      let text = "", stopReason = null;
+      let text = "", stopReason = null, lastDraft = 0;
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
       while (true) {
         const { value, done } = await reader.read(); if (done) break;
@@ -249,9 +278,15 @@ export default function ProgramLayerBuilder() {
           let ev; try { ev = JSON.parse(line.slice(5)); } catch { continue; }
           if (ev.type === "content_block_delta" && ev.delta?.text) {
             text += ev.delta.text;
-            const n = (text.match(/"twenty_percent"/g) || []).length;
-            const drafting = (text.match(/"name":/g) || []).length;
-            setProgress(n ? `${n} program${n > 1 ? "s" : ""} drafted${drafting > n ? ", working on the next" : ""}…` : drafting ? "Drafting the first program…" : "Reading the budget…");
+            const now = Date.now();
+            if (now - lastDraft > 200) {
+              lastDraft = now;
+              const d = parsePartial(text);
+              setDraft(d);
+              const n = d.programs.length;
+              const drafting = (text.match(/"name":/g) || []).length;
+              setProgress(n ? `${n} program${n > 1 ? "s" : ""} drafted${drafting > n ? ", working on the next" : ""}…` : drafting ? "Drafting the first program…" : "Reading the budget…");
+            }
           }
           if (ev.type === "message_delta" && ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
           if (ev.type === "error") throw new Error(ev.error?.message || "stream error");
@@ -262,7 +297,7 @@ export default function ProgramLayerBuilder() {
     try {
       let { text, stopReason } = await run("");
       if (stopReason === "max_tokens") {
-        setProgress("The first draft ran long; asking for a tighter one…");
+        setProgress("The first draft ran long; asking for a tighter one…"); setDraft(null);
         ({ text, stopReason } = await run("\n\nIMPORTANT: your previous reply exceeded the length limit and was discarded. Produce the same JSON at half the length: at most 6 programs, 2 outputs and 1 outcome each, every string under 15 words, notes under 20 words, no more than 2 cautions and 2 data_requests."));
       }
       if (stopReason === "max_tokens") throw new Error("The reply was cut off before the JSON finished, even after a retry. Try a smaller file or a different model.");
@@ -270,33 +305,37 @@ export default function ProgramLayerBuilder() {
       if (s < 0) throw new Error(`No JSON in reply. It began: ${text.slice(0, 160)}`);
       let parsed;
       try { parsed = JSON.parse(text.slice(s, e + 1)); } catch (err) { throw new Error(`Couldn't parse the reply (${err.message}). It began: ${text.slice(0, 160)}`); }
-      parsed.programs = (parsed.programs || []).map((p) => ({ ...p, item_ids: (p.item_ids || []).flatMap(expand) }));
-      parsed.allocations = (parsed.allocations || []).flatMap((a) => expand(a.item_id).map((id) => ({ ...a, item_id: id })));
-      setResult(parsed); setStatus("done");
-    } catch (err) { setError(err?.message || "The analysis didn't come back as expected."); setStatus("error"); }
+      setResult(parsed); setDraft(null); setStatus("done");
+    } catch (err) { setError(err?.message || "The analysis didn't come back as expected."); setStatus("error"); setDraft(null); }
   }
 
-  // ---- costing: whole assignments + shared allocations, in program order returned
+  // ---- costing from whichever we have: the finished reply, or the programs streamed so far
+  const live = result || draft;
+  const streaming = !result && !!draft;
   const byId = useMemo(() => Object.fromEntries(items.map((it) => [it.id, it])), [items]);
   const programs = useMemo(() => {
-    if (!result) return [];
-    const n = result.programs.length;
-    const alloc = {}; // item id -> normalized shares
-    (result.allocations || []).forEach((a) => {
-      const sh = (a.shares || []).slice(0, n).map((x) => Math.max(0, Number(x) || 0));
-      const sum = sh.reduce((s, x) => s + x, 0);
-      if (byId[a.item_id] && sum > 0) alloc[a.item_id] = sh.map((x) => x / sum);
-    });
-    const whole = new Set(result.programs.flatMap((p) => p.item_ids));
-    Object.keys(alloc).forEach((id) => { if (whole.has(Number(id))) delete alloc[id]; });
-    return result.programs.map((p, pi) => {
+    if (!live) return [];
+    const expand = (id) => (pools[id] ? pools[id] : [id]);
+    const progs = live.programs.map((p) => ({
+      ...p,
+      item_ids: (p.item_ids || []).flatMap(expand),
+      shared: (p.shared || []).flatMap((sh) => expand(sh.item_id).map((id) => ({ item_id: id, share: Math.max(0, Number(sh.share) || 0) }))),
+    }));
+    // normalize each shared line's shares across programs once the reply is complete; leave raw while streaming
+    const sums = {};
+    progs.forEach((p) => p.shared.forEach((sh) => { sums[sh.item_id] = (sums[sh.item_id] || 0) + sh.share; }));
+    const whole = new Set(progs.flatMap((p) => p.item_ids));
+    return progs.map((p) => {
       const direct = p.item_ids.map((id) => byId[id]).filter(Boolean).map((it) => ({ ...it, share: 1, alloc: it.amt }));
-      const shared = Object.entries(alloc).filter(([, sh]) => sh[pi] > 0).map(([id, sh]) => ({ ...byId[id], share: sh[pi], alloc: byId[id].amt * sh[pi] }));
-      const lines = [...direct, ...shared].sort((a, b) => b.alloc - a.alloc);
+      const sharedLines = p.shared.filter((sh) => byId[sh.item_id] && !whole.has(sh.item_id) && sh.share > 0).map((sh) => {
+        const norm = streaming ? Math.min(sh.share, 1) : sh.share / (sums[sh.item_id] || 1);
+        return { ...byId[sh.item_id], share: norm, alloc: byId[sh.item_id].amt * norm };
+      });
+      const lines = [...direct, ...sharedLines].sort((a, b) => b.alloc - a.alloc);
       const cost = lines.reduce((s, l) => s + l.alloc, 0);
       return { ...p, lines, cost, share: total ? cost / total : 0 };
     });
-  }, [result, byId, total]);
+  }, [live, byId, total, pools, streaming]);
   const assigned = useMemo(() => new Set(programs.flatMap((p) => p.lines.map((l) => l.id))), [programs]);
   const unassigned = items.filter((it) => !assigned.has(it.id));
   const coverage = total ? (total - unassigned.reduce((s, i) => s + i.amt, 0)) / total : 0;
@@ -593,7 +632,7 @@ export default function ProgramLayerBuilder() {
         </aside>
 
         <main>
-          {!result && status !== "thinking" && (
+          {!live && status !== "thinking" && (
             <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 18, maxWidth: 560, lineHeight: 1.6, fontSize: 15 }}>
               <p style={{ marginTop: 0 }}>
                 Two things make a program layer real rather than ceremonial: every dollar sits in a program, and each program carries a
@@ -607,21 +646,26 @@ export default function ProgramLayerBuilder() {
               </p>
             </div>
           )}
-          {status === "thinking" && (
+          {status === "thinking" && !draft?.programs?.length && (
             <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 18, fontFamily: sans, fontSize: 14, color: C.grey, lineHeight: 1.6 }}>
               <div style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{progress || "Reading the budget…"}</div>
               <div>{items.length} lines in {new Set(items.map((i) => i.cc)).size} costing centers, sent as {sendCount} summarized lines.</div>
             </div>
           )}
 
-          {result && (
+          {live && (
             <div>
+              {streaming && (
+                <div className="no-print" style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 14, marginBottom: 18, fontFamily: sans, fontSize: 13, color: C.grey }}>
+                  <span style={{ fontFamily: serif, fontSize: 16, color: C.ink }}>{progress}</span> Cards appear as each program is drafted; shared-line costs settle when the last one lands.
+                </div>
+              )}
               {/* overview: coverage bar, one-line read, program index with proportional bars */}
               <div style={{ marginBottom: 32 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
                   <div style={{ fontSize: narrow ? 18 : 22 }}>{programs.length} programs · {money(total)} · {programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE
-                    <span style={{ fontFamily: sans, fontSize: 13, color: C.grey, marginLeft: 10 }}>{facingLabel(result.orientation)}</span></div>
-                  <div style={{ fontFamily: sans, fontSize: 13, color: coverage > 0.98 ? C.grey : C.maroon }}>{Math.round(coverage * 100)}% mapped</div>
+                    <span style={{ fontFamily: sans, fontSize: 13, color: C.grey, marginLeft: 10 }}>{facingLabel(live.orientation)}</span></div>
+                  <div style={{ fontFamily: sans, fontSize: 13, color: coverage > 0.98 || streaming ? C.grey : C.maroon }}>{Math.round(coverage * 100)}% mapped{streaming ? " so far" : ""}</div>
                 </div>
                 <div style={{ display: "flex", height: 22, width: "100%", background: C.line }}>
                   {sorted.filter((p) => p.cost > 0).map((p, i) => (
@@ -630,7 +674,7 @@ export default function ProgramLayerBuilder() {
                   ))}
                   {unassigned.length > 0 && <div style={{ flex: 1, background: C.gold }} title="Unassigned" />}
                 </div>
-                <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 640, margin: "16px 0 18px" }}>{result.division_read}</p>
+                <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 640, margin: "16px 0 18px" }}>{live.division_read}</p>
 
                 <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr auto" : "minmax(200px, 1fr) 2fr auto", columnGap: narrow ? 10 : 16, rowGap: narrow ? 10 : 6, alignItems: "center", fontFamily: sans, fontSize: 13 }}>
                   {sorted.map((p) => (
@@ -666,7 +710,7 @@ export default function ProgramLayerBuilder() {
                     {/* header */}
                     <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr auto", gap: narrow ? 12 : 20, alignItems: "start" }}>
                       <div>
-                        <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 4 }}>Program {idx + 1} of {sorted.length}{p.is_admin ? " · administration" : ""}</div>
+                        <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 4 }}>Program {idx + 1}{streaming ? "" : ` of ${sorted.length}`}{p.is_admin ? " · administration" : ""}{streaming ? " · draft" : ""}</div>
                         <h2 style={{ fontWeight: "normal", fontSize: narrow ? 20 : 23, margin: "0 0 8px", lineHeight: 1.2 }}>{p.name}</h2>
                         <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.55, maxWidth: 580 }}>
                           {p.statement}{p.statement && !/[.!?]$/.test(p.statement) ? "" : ""}, at {money(p.cost)} and {Number(p.fte || 0).toFixed(2)} FTE in FY26.
@@ -702,7 +746,7 @@ export default function ProgramLayerBuilder() {
 
                     {/* three measures */}
                     <div style={{ borderTop: `1px solid ${C.line}`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr" }}>
-                      <MeasureCell kind={resultKind(p.facing || result.orientation)[0]} sub={resultKind(p.facing || result.orientation)[1]} m={m.result} last={narrow} />
+                      <MeasureCell kind={resultKind(p.facing || live.orientation)[0]} sub={resultKind(p.facing || live.orientation)[1]} m={m.result} last={narrow} />
                       <MeasureCell kind="Volume" sub="how much was delivered" m={m.volume} last={narrow} />
                       <MeasureCell kind="Unit cost" sub="cost ÷ volume" m={m.unit_cost} last />
                     </div>
@@ -738,7 +782,7 @@ export default function ProgramLayerBuilder() {
                 );
               })}
 
-              {result.accountabilities_elsewhere?.length > 0 && (
+              {result?.accountabilities_elsewhere?.length > 0 && (
                 <section style={{ background: C.white, border: `1px solid ${C.line}`, borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `16px ${pad}px` }}>
                   <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 4 }}>Accountabilities funded elsewhere</div>
                   <p style={{ margin: "0 0 10px", fontSize: 14, color: C.grey, maxWidth: 640, lineHeight: 1.5 }}>Real responsibilities of this division whose cost sits outside this budget. Under the standard they are noted, not costed here.</p>
@@ -754,7 +798,7 @@ export default function ProgramLayerBuilder() {
                 </section>
               )}
 
-              <section style={{ background: C.white, border: `1px solid ${C.line}`, marginBottom: 20, padding: `16px ${pad}px` }}>
+              {result && <section style={{ background: C.white, border: `1px solid ${C.line}`, marginBottom: 20, padding: `16px ${pad}px` }}>
                 <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 8 }}>Budget office check · {checks.filter((c) => c.ok).length} of {checks.length} pass</div>
                 <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", columnGap: 24, rowGap: 6, fontFamily: sans, fontSize: 13, lineHeight: 1.45 }}>
                   {checks.map((c, i) => (
@@ -763,9 +807,9 @@ export default function ProgramLayerBuilder() {
                     </div>
                   ))}
                 </div>
-              </section>
+              </section>}
 
-              {unassigned.length > 0 && (
+              {result && unassigned.length > 0 && (
                 <section style={{ background: C.white, border: `1px solid ${C.line}`, borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `18px ${pad}px` }}>
                   <h2 style={{ fontWeight: "normal", fontSize: 21, margin: "0 0 6px" }}>Unassigned · {money(unassigned.reduce((s, i) => s + i.amt, 0))}</h2>
                   <p style={{ fontFamily: sans, fontSize: 13, color: C.grey, margin: "0 0 10px" }}>These need a home before the map is usable.</p>
@@ -773,7 +817,7 @@ export default function ProgramLayerBuilder() {
                 </section>
               )}
 
-              {(result.cautions?.length > 0 || result.data_requests?.length > 0) && (
+              {result && (result.cautions?.length > 0 || result.data_requests?.length > 0) && (
                 <div style={{ display: "grid", gridTemplateColumns: result.cautions?.length && result.data_requests?.length && !narrow ? "1fr 1fr" : "1fr", gap: 20, marginBottom: 20 }}>
                   {result.cautions?.length > 0 && (
                     <section style={{ background: C.white, border: `1px solid ${C.line}`, padding: `16px ${pad}px`, fontSize: 14, lineHeight: 1.6 }}>
@@ -790,7 +834,7 @@ export default function ProgramLayerBuilder() {
                 </div>
               )}
 
-              <div className="no-print" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              {result && <div className="no-print" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <button onClick={exportHtml} style={{ padding: "10px 16px", background: C.maroon, color: C.sand, border: "none", fontFamily: sans, fontSize: 13, cursor: "pointer" }}>
                   {htmlText ? "Report copied as HTML" : "Copy report as HTML (for PDF)"}
                 </button>
@@ -801,10 +845,10 @@ export default function ProgramLayerBuilder() {
                   {copied ? "Copied to clipboard" : "Copy line → program allocation (CSV)"}
                 </button>
                 <button onClick={analyze} style={{ padding: "10px 16px", background: "none", color: C.maroon, border: `1px solid ${C.maroon}`, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Re-run</button>
-              </div>
-              <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${C.line}`, fontFamily: sans, fontSize: 12, color: C.grey, lineHeight: 1.6, maxWidth: 720 }}>
+              </div>}
+              {result && <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${C.line}`, fontFamily: sans, fontSize: 12, color: C.grey, lineHeight: 1.6, maxWidth: 720 }}>
                 Pre-decisional draft to the County Program Standard · {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}. Dollars are summed from the FY adopted budget export; the grouping, shares, FTE, and measures are proposed for discussion with the division. Public Works LLC with Funkhouser &amp; Associates for Frederick County.
-              </div>
+              </div>}
               {htmlText && (
                 <div className="no-print" style={{ marginTop: 16, borderLeft: `3px solid ${C.gold}`, paddingLeft: 14 }}>
                   <div style={{ fontFamily: sans, fontSize: 13, color: C.ink, lineHeight: 1.6 }}>
