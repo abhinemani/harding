@@ -159,6 +159,8 @@ export default function ProgramLayerBuilder() {
   const [status, setStatus] = useState("idle");
   const [progress, setProgress] = useState("");
   const [draft, setDraft] = useState(null);
+  const [stage, setStage] = useState("idle"); // idle | reading | thinking | drafting | finishing | done
+  const [setupOpen, setSetupOpen] = useState(true);
   const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
   const [mdText, setMdText] = useState("");
@@ -237,7 +239,7 @@ export default function ProgramLayerBuilder() {
 
   async function analyze() {
     if (!items.length) return;
-    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress(""); setDraft(null);
+    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress(""); setDraft(null); setStage("reading");
     // Compress within each costing center when the file is large: personnel pooled, small operating lines pooled, big lines kept.
     // Pools carry negative ids; the reply's references to them are expanded back to the real lines below.
     let send = []; const pools = {};
@@ -283,6 +285,7 @@ export default function ProgramLayerBuilder() {
               lastDraft = now;
               const d = parsePartial(text);
               setDraft(d);
+              setStage(text.includes('"accountabilities_elsewhere"') || text.includes('"cautions"') ? "finishing" : "drafting");
               const n = d.programs.length;
               const drafting = (text.match(/"name":/g) || []).length;
               setProgress(n ? `${n} program${n > 1 ? "s" : ""} drafted${drafting > n ? ", working on the next" : ""}…` : drafting ? "Drafting the first program…" : "Reading the budget…");
@@ -305,8 +308,8 @@ export default function ProgramLayerBuilder() {
       if (s < 0) throw new Error(`No JSON in reply. It began: ${text.slice(0, 160)}`);
       let parsed;
       try { parsed = JSON.parse(text.slice(s, e + 1)); } catch (err) { throw new Error(`Couldn't parse the reply (${err.message}). It began: ${text.slice(0, 160)}`); }
-      setResult(parsed); setDraft(null); setStatus("done");
-    } catch (err) { setError(err?.message || "The analysis didn't come back as expected."); setStatus("error"); setDraft(null); }
+      setResult(parsed); setDraft(null); setStatus("done"); setStage("done"); if (narrow) setSetupOpen(false);
+    } catch (err) { setError(err?.message || "The analysis didn't come back as expected."); setStatus("error"); setDraft(null); setStage("idle"); }
   }
 
   // ---- costing from whichever we have: the finished reply, or the programs streamed so far
@@ -517,7 +520,7 @@ export default function ProgramLayerBuilder() {
     </select>
   );
   const Drop = ({ onChange, accept, text, name }) => (
-    <label style={{ display: "block", padding: 14, border: `1px dashed ${C.maroon}`, background: C.paper, cursor: "pointer", fontFamily: sans, fontSize: 13 }}>
+    <label style={{ display: "block", padding: 14, border: `1px dashed ${name ? C.line : C.maroon}`, borderRadius: 4, background: C.paper, cursor: "pointer", fontFamily: sans, fontSize: 13 }}>
       <input type="file" accept={accept} onChange={onChange} style={{ display: "none" }} />
       {name ? <span>{name}</span> : <span style={{ color: C.grey }}>{text}</span>}
     </label>
@@ -566,37 +569,95 @@ export default function ProgramLayerBuilder() {
     </table>
   );
 
+  const Btn = ({ primary, children, className, ...rest }) => (
+    <button {...rest} className={`btn ${primary ? "btn-primary" : "btn-secondary"} ${className || ""}`}>{children}</button>
+  );
+  const STAGES = [["reading", "Reading the budget"], ["thinking", "Thinking it through"], ["drafting", "Drafting programs"], ["finishing", "Checking the draft"]];
+  const stageIdx = STAGES.findIndex(([k]) => k === stage);
+  const RunStatus = () => (
+    <div className="card fade" style={{ padding: `${narrow ? 14 : 16}px ${pad}px`, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ fontSize: narrow ? 16 : 18 }}>{progress || "Reading the budget…"}</div>
+        <div style={{ fontFamily: sans, fontSize: 12, color: C.grey }}>{items.length} lines · {new Set(items.map((i) => i.cc)).size} costing centers · sent as {sendCount}</div>
+      </div>
+      <div className="indet" style={{ marginTop: 12 }}><span /></div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, 1fr)`, gap: 6, marginTop: 10 }}>
+        {STAGES.map(([k, label], i) => {
+          const state = i < stageIdx ? "done" : i === stageIdx ? "active" : "todo";
+          return (
+            <div key={k} style={{ fontFamily: sans, fontSize: narrow ? 10.5 : 11.5, color: state === "todo" ? C.line : state === "active" ? C.maroon : C.grey, display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 8, background: state === "todo" ? C.line : state === "active" ? C.maroon : C.grey, flexShrink: 0 }} />
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}{k === "drafting" && draft?.programs?.length ? ` · ${draft.programs.length}` : ""}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const SkeletonCard = () => (
+    <section className="card program-card skel" style={{ marginBottom: 20 }}>
+      <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr auto", gap: 20 }}>
+        <div><div className="sk" style={{ width: 90, height: 10, marginBottom: 10 }} /><div className="sk" style={{ width: "55%", height: 22, marginBottom: 10 }} /><div className="sk" style={{ width: "92%", height: 12, marginBottom: 6 }} /><div className="sk" style={{ width: "70%", height: 12 }} /></div>
+        {!narrow && <div style={{ textAlign: "right" }}><div className="sk" style={{ width: 120, height: 26, marginLeft: "auto", marginBottom: 8 }} /><div className="sk" style={{ width: 150, height: 10, marginLeft: "auto" }} /></div>}
+      </div>
+      <div style={{ borderTop: `1px solid ${C.line}`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr" }}>
+        {[0, 1, 2].map((i) => <div key={i} style={{ padding: `12px ${pad}px` }}><div className="sk" style={{ width: 70, height: 9, marginBottom: 8 }} /><div className="sk" style={{ width: "85%", height: 12 }} /></div>)}
+      </div>
+    </section>
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: C.sand, color: C.ink, fontFamily: serif }}>
       <style>{`
+        * { -webkit-tap-highlight-color: transparent; }
+        .card { background: ${C.white}; border: 1px solid ${C.line}; border-radius: 6px; box-shadow: 0 1px 2px rgba(44,44,44,0.05); }
+        .program-card { border-top: 4px solid ${C.maroon}; }
+        .btn { padding: 10px 16px; border-radius: 4px; font: 13.5px Arial, Helvetica, sans-serif; cursor: pointer; transition: background .15s, color .15s, border-color .15s, opacity .15s; }
+        .btn-primary { background: ${C.maroon}; color: ${C.sand}; border: 1px solid ${C.maroon}; } .btn-primary:hover:not(:disabled) { background: ${C.maroonDark}; }
+        .btn-primary:disabled { background: ${C.line}; border-color: ${C.line}; color: ${C.grey}; cursor: default; }
+        .btn-secondary { background: transparent; color: ${C.maroon}; border: 1px solid ${C.maroon}; } .btn-secondary:hover { background: rgba(107,26,42,0.06); }
+        .btn-ghost { background: transparent; color: ${C.sand}; border: 1px solid rgba(244,238,226,0.45); border-radius: 4px; font: 12px Arial, Helvetica, sans-serif; cursor: pointer; } .btn-ghost:hover { border-color: ${C.sand}; }
+        .fade { animation: fadeUp .35s ease-out both; } @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .indet { height: 4px; background: ${C.paper}; border-radius: 4px; overflow: hidden; position: relative; }
+        .indet span { position: absolute; left: -40%; top: 0; bottom: 0; width: 40%; background: linear-gradient(90deg, transparent, ${C.gold}, transparent); animation: slide 1.4s ease-in-out infinite; }
+        @keyframes slide { to { left: 100%; } }
+        .sk { background: ${C.paper}; border-radius: 3px; animation: pulse 1.3s ease-in-out infinite; } @keyframes pulse { 50% { opacity: .45; } }
+        .skel { border-top-color: ${C.line}; }
+        .pill { display: inline-flex; align-items: center; gap: 7px; font: 12px Arial, Helvetica, sans-serif; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+        .spin { width: 10px; height: 10px; border: 2px solid rgba(244,238,226,0.35); border-top-color: ${C.sand}; border-radius: 50%; animation: rot .8s linear infinite; } @keyframes rot { to { transform: rotate(360deg); } }
         @media print {
           @page { margin: 16mm 14mm; }
           body { background: #fff !important; }
           .no-print { display: none !important; }
           .print-layout { display: block !important; padding: 0 !important; max-width: none !important; }
-          .masthead { background: #fff !important; color: #2C2C2C !important; padding: 0 0 12px !important; border-bottom: 3px solid #6B1A2A; margin-bottom: 18px; }
-          .masthead p, .masthead .kicker { color: #6B6B6B !important; opacity: 1 !important; }
+          .appbar { position: static !important; background: #fff !important; color: #2C2C2C !important; border-bottom: 3px solid #6B1A2A; box-shadow: none !important; }
           .program-card { break-inside: avoid; page-break-inside: avoid; box-shadow: none; }
           .cost-build-body { display: block !important; }
+          .fade { animation: none; }
           a { color: inherit; }
         }
       `}</style>
-      <div className="masthead" style={{ background: C.maroon, color: C.sand, padding: result ? (narrow ? "16px 16px 14px" : "20px 32px 18px") : (narrow ? "20px 16px 18px" : "28px 32px 24px") }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto" }}>
-          <div className="kicker" style={{ fontFamily: sans, fontSize: 13, opacity: 0.8 }}>Line of Sight · program layer builder</div>
-          <h1 style={{ fontWeight: "normal", fontSize: narrow ? 26 : 34, margin: result ? "4px 0 0" : "6px 0 8px", lineHeight: 1.15 }}>{result ? `${division || "Division"}: proposed program layer` : "From line items to costed programs"}</h1>
-          {!result && (
-            <p style={{ maxWidth: 660, margin: 0, fontSize: 15, lineHeight: 1.55, opacity: 0.9 }}>
-              Upload a division's line-item budget export. The app drafts its programs to the County Program Standard — a one-sentence
-              statement for each, full cost and FTE, a result, a volume, and a unit cost measure, mandate status, strategic linkage, and the
-              twenty-percent question — then runs the budget office's checks on the draft.
-            </p>
-          )}
+
+      {/* app bar */}
+      <div className="appbar" style={{ position: "sticky", top: 0, zIndex: 20, background: C.maroon, color: C.sand, boxShadow: "0 1px 0 rgba(0,0,0,0.15)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", padding: narrow ? "10px 16px" : "12px 32px", display: "flex", alignItems: "center", gap: 14, minHeight: 48 }}>
+          <div style={{ width: 26, height: 26, borderRadius: 6, background: C.gold, display: "grid", placeItems: "center", flexShrink: 0 }}>
+            <span style={{ display: "block", width: 11, height: 11, borderLeft: `3px solid ${C.maroon}`, borderBottom: `3px solid ${C.maroon}`, marginTop: -3, marginLeft: 2 }} />
+          </div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: sans, fontSize: narrow ? 13 : 14, fontWeight: "bold", letterSpacing: 0.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Program Layer Builder</div>
+            {(division || fileName) && <div style={{ fontFamily: sans, fontSize: 11.5, opacity: 0.8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{division || fileName}</div>}
+          </div>
+          {status === "thinking" && <span className="pill" style={{ background: "rgba(0,0,0,0.18)" }}><span className="spin" />{narrow ? "Working" : STAGES[Math.max(stageIdx, 0)][1]}</span>}
+          {status === "done" && !narrow && <span className="pill" style={{ background: "rgba(201,156,28,0.22)", color: "#F6E7B8" }}>Draft ready</span>}
+          {narrow && result && <button className="btn-ghost" style={{ padding: "6px 10px" }} onClick={() => setSetupOpen((v) => !v)}>{setupOpen ? "Hide setup" : "Setup"}</button>}
+          {!narrow && <Btn primary onClick={analyze} disabled={!ready} style={{ padding: "8px 14px" }}>{status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"}</Btn>}
         </div>
       </div>
 
-      <div className="print-layout" style={{ maxWidth: 1100, margin: "0 auto", padding: narrow ? "20px 16px 48px" : "28px 32px 64px", display: "grid", gridTemplateColumns: narrow ? "1fr" : "300px 1fr", gap: narrow ? 24 : 32 }}>
-        <aside className="no-print" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="print-layout" style={{ maxWidth: 1100, margin: "0 auto", padding: narrow ? "16px 16px 48px" : "24px 32px 64px", display: "grid", gridTemplateColumns: narrow ? "1fr" : "300px 1fr", gap: narrow ? 20 : 32, alignItems: "start" }}>
+        {(setupOpen || !narrow) && <aside className="no-print card" style={{ padding: `${narrow ? 14 : 18}px ${pad}px`, display: "flex", flexDirection: "column", gap: 16, position: narrow ? "static" : "sticky", top: 72 }}>
+          <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", color: C.grey }}>Setup</div>
           <div><Label>Budget export (.csv or .xlsx)</Label>
             <Drop onChange={onBudget} accept=".csv,.xlsx,.xls" name={fileName} text="Choose the division's line-item budget" /></div>
 
@@ -624,58 +685,53 @@ export default function ProgramLayerBuilder() {
             </div>
           )}
 
-          <button onClick={analyze} disabled={!ready}
-            style={{ padding: "12px 16px", background: ready ? C.maroon : C.line, color: ready ? C.sand : C.grey, border: "none", fontFamily: sans, fontSize: 14, cursor: ready ? "pointer" : "default" }}>
-            {status === "thinking" ? "Working…" : "Propose programs"}
-          </button>
-          {error && <div style={{ fontFamily: sans, fontSize: 13, color: C.maroon, lineHeight: 1.5 }}>{error}</div>}
-        </aside>
+          {narrow && <Btn primary onClick={analyze} disabled={!ready} style={{ padding: "12px 16px", fontSize: 14 }}>{status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"}</Btn>}
+          {error && <div style={{ fontFamily: sans, fontSize: 13, color: C.maroon, lineHeight: 1.5, borderLeft: `3px solid ${C.maroon}`, paddingLeft: 10 }}>{error}</div>}
+        </aside>}
 
-        <main>
+        <main style={{ minWidth: 0 }}>
           {!live && status !== "thinking" && (
-            <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 18, maxWidth: 560, lineHeight: 1.6, fontSize: 15 }}>
-              <p style={{ marginTop: 0 }}>
-                Two things make a program layer real rather than ceremonial: every dollar sits in a program, and each program carries a
-                measure someone can actually produce. What you get here is a first draft of both, meant to be argued with in a room
-                with the division director.
-              </p>
-              <p style={{ marginBottom: 0, color: C.grey }}>
-                The draft follows the four boundary rules — exclusive and exhaustive, cost follows the budget, 3–25% span, administration
-                named — and the fixed program-statement grammar. Where the budget is mostly salaries in one costing center, staff time is
-                allocated as a starting bid for the director to correct. Responsibilities funded outside this budget are noted, not costed.
+            <div className="card fade" style={{ padding: `${narrow ? 18 : 24}px ${pad}px` }}>
+              <div style={{ fontFamily: sans, fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", color: C.grey, marginBottom: 12 }}>How it works</div>
+              <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr", gap: narrow ? 14 : 22 }}>
+                {[["1", "Upload a budget export", "The county's standard line-item file. Revenue, zero, and recovery lines are set aside; personnel and small lines are pooled per costing center."],
+                  ["2", "Programs are drafted to the Standard", "One statement each, full cost and FTE, three measures of three kinds, mandate, priority alignment, and the twenty-percent question — cards appear as each one lands."],
+                  ["3", "The budget office's checks run", "Sums to appropriation, span, one administration program, no effort verbs, measures from real systems. Then export to PDF, HTML, Markdown, or CSV."]].map(([n, t, d]) => (
+                  <div key={n} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 10 }}>
+                    <div style={{ width: 26, height: 26, borderRadius: 13, background: C.maroon, color: C.sand, fontFamily: sans, fontSize: 12, display: "grid", placeItems: "center" }}>{n}</div>
+                    <div><div style={{ fontSize: 15.5, marginBottom: 4 }}>{t}</div><div style={{ fontFamily: sans, fontSize: 12.5, color: C.grey, lineHeight: 1.5 }}>{d}</div></div>
+                  </div>
+                ))}
+              </div>
+              <p style={{ margin: "18px 0 0", fontSize: 14, color: C.grey, lineHeight: 1.55, maxWidth: 640 }}>
+                What comes out is a first draft meant to be argued with in a room with the division director. Dollars are summed from your file; only the grouping, shares, and language are proposed.
               </p>
             </div>
           )}
-          {status === "thinking" && !draft?.programs?.length && (
-            <div style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 18, fontFamily: sans, fontSize: 14, color: C.grey, lineHeight: 1.6 }}>
-              <div style={{ fontFamily: serif, fontSize: 18, color: C.ink }}>{progress || "Reading the budget…"}</div>
-              <div>{items.length} lines in {new Set(items.map((i) => i.cc)).size} costing centers, sent as {sendCount} summarized lines.</div>
-            </div>
-          )}
+
+          {status === "thinking" && <RunStatus />}
 
           {live && (
             <div>
-              {streaming && (
-                <div className="no-print" style={{ borderLeft: `3px solid ${C.gold}`, paddingLeft: 14, marginBottom: 18, fontFamily: sans, fontSize: 13, color: C.grey }}>
-                  <span style={{ fontFamily: serif, fontSize: 16, color: C.ink }}>{progress}</span> Cards appear as each program is drafted; shared-line costs settle when the last one lands.
+              {/* overview: stats, coverage bar, one-line read, program index */}
+              {live.division_read && !programs.length && <p className="fade" style={{ fontSize: 15.5, lineHeight: 1.6, maxWidth: 640, margin: "0 0 20px" }}>{live.division_read}</p>}
+              {programs.length > 0 && <div className="card fade" style={{ padding: `${narrow ? 14 : 18}px ${pad}px`, marginBottom: 20 }}>
+                <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)", gap: narrow ? 10 : 16, marginBottom: 14 }}>
+                  {[[`${programs.length}`, "programs"], [money(total), "in this budget"], [programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1), "FTE"], [`${Math.round(coverage * 100)}%`, streaming ? "mapped so far" : "mapped"]].map(([v, l]) => (
+                    <div key={l}><div style={{ fontSize: narrow ? 20 : 24, lineHeight: 1.1 }}>{v}</div><div style={{ fontFamily: sans, fontSize: 11.5, color: C.grey, marginTop: 3 }}>{l}</div></div>
+                  ))}
                 </div>
-              )}
-              {/* overview: coverage bar, one-line read, program index with proportional bars */}
-              <div style={{ marginBottom: 32 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
-                  <div style={{ fontSize: narrow ? 18 : 22 }}>{programs.length} programs · {money(total)} · {programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1)} FTE
-                    <span style={{ fontFamily: sans, fontSize: 13, color: C.grey, marginLeft: 10 }}>{facingLabel(live.orientation)}</span></div>
-                  <div style={{ fontFamily: sans, fontSize: 13, color: coverage > 0.98 || streaming ? C.grey : C.maroon }}>{Math.round(coverage * 100)}% mapped{streaming ? " so far" : ""}</div>
-                </div>
-                <div style={{ display: "flex", height: 22, width: "100%", background: C.line }}>
+                <div style={{ display: "flex", height: 14, width: "100%", background: C.paper, borderRadius: 3, overflow: "hidden" }}>
                   {sorted.filter((p) => p.cost > 0).map((p, i) => (
                     <div key={p.name} title={`${p.name}: ${money(p.cost)}`}
-                      style={{ width: `${Math.max(p.share * 100, 0.4)}%`, background: i % 2 === 0 ? C.maroon : C.maroonDark, borderRight: `1px solid ${C.sand}` }} />
+                      style={{ width: `${Math.max(p.share * 100, 0.4)}%`, background: p.is_admin ? C.grey : i % 2 === 0 ? C.maroon : C.maroonDark, borderRight: `1px solid ${C.white}`, transition: "width .4s" }} />
                   ))}
-                  {unassigned.length > 0 && <div style={{ flex: 1, background: C.gold }} title="Unassigned" />}
+                  {!streaming && unassigned.length > 0 && <div style={{ flex: 1, background: C.gold }} title="Unassigned" />}
                 </div>
-                <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 640, margin: "16px 0 18px" }}>{live.division_read}</p>
-
+                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: sans, fontSize: 11.5, color: C.grey, marginTop: 6, gap: 10 }}>
+                  <span>{facingLabel(live.orientation)}</span><span style={{ textAlign: "right" }}>{streaming ? "shares settle when the last program lands" : coverage > 0.995 ? "every dollar sits in a program" : `${money(unassigned.reduce((s, i) => s + i.amt, 0))} unassigned`}</span>
+                </div>
+                <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 640, margin: "16px 0 16px" }}>{live.division_read}</p>
                 <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr auto" : "minmax(200px, 1fr) 2fr auto", columnGap: narrow ? 10 : 16, rowGap: narrow ? 10 : 6, alignItems: "center", fontFamily: sans, fontSize: 13 }}>
                   {sorted.map((p) => (
                     <a key={p.name} href={`#prog-${encodeURIComponent(p.name)}`} style={{ display: "contents", color: C.ink, textDecoration: "none" }}>
@@ -696,7 +752,7 @@ export default function ProgramLayerBuilder() {
                   <span><Dot v="unlikely" /> would need new collection</span>
                   <span style={{ marginLeft: "auto" }}>Result measures: outcome for external programs, service level for internal.</span>
                 </div>
-              </div>
+              </div>}
 
               {/* program cards */}
               {sorted.map((p, idx) => {
@@ -705,8 +761,8 @@ export default function ProgramLayerBuilder() {
                 const m = p.measures || {};
                 const mandateColor = p.mandate?.status === "discretionary" ? C.gold : C.grey;
                 return (
-                  <section key={key} id={`prog-${encodeURIComponent(p.name)}`} className="program-card"
-                    style={{ background: C.white, border: `1px solid ${C.line}`, borderTop: `4px solid ${p.is_admin ? C.grey : C.maroon}`, marginBottom: 20, scrollMarginTop: 16 }}>
+                  <section key={key} id={`prog-${encodeURIComponent(p.name)}`} className="card program-card fade"
+                    style={{ borderTopColor: p.is_admin ? C.grey : C.maroon, marginBottom: 20, scrollMarginTop: 72, overflow: "hidden" }}>
                     {/* header */}
                     <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr auto", gap: narrow ? 12 : 20, alignItems: "start" }}>
                       <div>
@@ -782,8 +838,10 @@ export default function ProgramLayerBuilder() {
                 );
               })}
 
+              {streaming && <SkeletonCard />}
+
               {result?.accountabilities_elsewhere?.length > 0 && (
-                <section style={{ background: C.white, border: `1px solid ${C.line}`, borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `16px ${pad}px` }}>
+                <section className="card fade" style={{ borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `16px ${pad}px` }}>
                   <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 4 }}>Accountabilities funded elsewhere</div>
                   <p style={{ margin: "0 0 10px", fontSize: 14, color: C.grey, maxWidth: 640, lineHeight: 1.5 }}>Real responsibilities of this division whose cost sits outside this budget. Under the standard they are noted, not costed here.</p>
                   <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: sans, fontSize: 13 }}><tbody>
@@ -798,7 +856,7 @@ export default function ProgramLayerBuilder() {
                 </section>
               )}
 
-              {result && <section style={{ background: C.white, border: `1px solid ${C.line}`, marginBottom: 20, padding: `16px ${pad}px` }}>
+              {result && <section className="card fade" style={{ marginBottom: 20, padding: `16px ${pad}px` }}>
                 <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 8 }}>Budget office check · {checks.filter((c) => c.ok).length} of {checks.length} pass</div>
                 <div style={{ display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr 1fr", columnGap: 24, rowGap: 6, fontFamily: sans, fontSize: 13, lineHeight: 1.45 }}>
                   {checks.map((c, i) => (
@@ -810,7 +868,7 @@ export default function ProgramLayerBuilder() {
               </section>}
 
               {result && unassigned.length > 0 && (
-                <section style={{ background: C.white, border: `1px solid ${C.line}`, borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `18px ${pad}px` }}>
+                <section className="card fade" style={{ borderTop: `4px solid ${C.gold}`, marginBottom: 20, padding: `18px ${pad}px` }}>
                   <h2 style={{ fontWeight: "normal", fontSize: 21, margin: "0 0 6px" }}>Unassigned · {money(unassigned.reduce((s, i) => s + i.amt, 0))}</h2>
                   <p style={{ fontFamily: sans, fontSize: 13, color: C.grey, margin: "0 0 10px" }}>These need a home before the map is usable.</p>
                   <LineTable lines={unassigned} />
@@ -820,13 +878,13 @@ export default function ProgramLayerBuilder() {
               {result && (result.cautions?.length > 0 || result.data_requests?.length > 0) && (
                 <div style={{ display: "grid", gridTemplateColumns: result.cautions?.length && result.data_requests?.length && !narrow ? "1fr 1fr" : "1fr", gap: 20, marginBottom: 20 }}>
                   {result.cautions?.length > 0 && (
-                    <section style={{ background: C.white, border: `1px solid ${C.line}`, padding: `16px ${pad}px`, fontSize: 14, lineHeight: 1.6 }}>
+                    <section className="card fade" style={{ padding: `16px ${pad}px`, fontSize: 14, lineHeight: 1.6 }}>
                       <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 8 }}>Where this is a judgment call</div>
                       {result.cautions.map((c, i) => <p key={i} style={{ margin: "0 0 8px" }}>{c}</p>)}
                     </section>
                   )}
                   {result.data_requests?.length > 0 && (
-                    <section style={{ background: C.white, border: `1px solid ${C.line}`, padding: `16px ${pad}px`, fontSize: 14, lineHeight: 1.6 }}>
+                    <section className="card fade" style={{ padding: `16px ${pad}px`, fontSize: 14, lineHeight: 1.6 }}>
                       <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 8 }}>What to ask the division for</div>
                       <ol style={{ margin: 0, paddingLeft: 20 }}>{result.data_requests.map((c, i) => <li key={i} style={{ marginBottom: 6 }}>{c}</li>)}</ol>
                     </section>
@@ -835,16 +893,9 @@ export default function ProgramLayerBuilder() {
               )}
 
               {result && <div className="no-print" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <button onClick={exportHtml} style={{ padding: "10px 16px", background: C.maroon, color: C.sand, border: "none", fontFamily: sans, fontSize: 13, cursor: "pointer" }}>
-                  {htmlText ? "Report copied as HTML" : "Copy report as HTML (for PDF)"}
-                </button>
-                <button onClick={exportMarkdown} style={{ padding: "10px 16px", background: "none", color: C.maroon, border: `1px solid ${C.maroon}`, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>
-                  {mdText ? "Report copied as Markdown" : "Copy report as Markdown"}
-                </button>
-                <button onClick={exportCsv} style={{ padding: "10px 16px", background: "none", color: C.maroon, border: `1px solid ${C.maroon}`, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>
-                  {copied ? "Copied to clipboard" : "Copy line → program allocation (CSV)"}
-                </button>
-                <button onClick={analyze} style={{ padding: "10px 16px", background: "none", color: C.maroon, border: `1px solid ${C.maroon}`, fontFamily: sans, fontSize: 13, cursor: "pointer" }}>Re-run</button>
+                <Btn primary onClick={exportHtml}>{htmlText ? "Report copied as HTML" : "Copy report as HTML (for PDF)"}</Btn>
+                <Btn onClick={exportMarkdown}>{mdText ? "Report copied as Markdown" : "Copy report as Markdown"}</Btn>
+                <Btn onClick={exportCsv}>{copied ? "Copied to clipboard" : "Copy allocation (CSV)"}</Btn>
               </div>}
               {result && <div style={{ marginTop: 28, paddingTop: 14, borderTop: `1px solid ${C.line}`, fontFamily: sans, fontSize: 12, color: C.grey, lineHeight: 1.6, maxWidth: 720 }}>
                 Pre-decisional draft to the County Program Standard · {new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}. Dollars are summed from the FY adopted budget export; the grouping, shares, FTE, and measures are proposed for discussion with the division. Public Works LLC with Funkhouser &amp; Associates for Frederick County.

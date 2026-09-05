@@ -589,6 +589,8 @@ function ProgramLayerBuilder() {
   }, [effort]);
   const supportsEffort = !model.startsWith("claude-haiku");
   const [draft, setDraft] = useState(null);
+  const [stage, setStage] = useState("idle"); // idle | reading | thinking | drafting | finishing | done
+  const [setupOpen, setSetupOpen] = useState(true);
   const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
   const [error, setError] = useState("");
@@ -702,6 +704,7 @@ function ProgramLayerBuilder() {
     setResult(null);
     setProgress("");
     setDraft(null);
+    setStage("reading");
     // Compress within each costing center when the file is large: personnel pooled, small operating lines pooled, big lines kept.
     // Pools carry negative ids; the reply's references to them are expanded back to the real lines below.
     let send = [];
@@ -811,6 +814,7 @@ function ProgramLayerBuilder() {
               lastDraft = now;
               const d = parsePartial(text);
               setDraft(d);
+              setStage(text.includes('"accountabilities_elsewhere"') || text.includes('"cautions"') ? "finishing" : "drafting");
               const n = d.programs.length;
               const drafting = (text.match(/"name":/g) || []).length;
               setProgress(n ? `${n} program${n > 1 ? "s" : ""} drafted${drafting > n ? ", working on the next" : ""}…` : drafting ? "Drafting the first program…" : "Reading the budget…");
@@ -851,10 +855,13 @@ function ProgramLayerBuilder() {
       setResult(parsed);
       setDraft(null);
       setStatus("done");
+      setStage("done");
+      if (narrow) setSetupOpen(false);
     } catch (err) {
       setError(err?.message || "The analysis didn't come back as expected.");
       setStatus("error");
       setDraft(null);
+      setStage("idle");
     }
   }
 
@@ -1176,7 +1183,8 @@ function ProgramLayerBuilder() {
     style: {
       display: "block",
       padding: 14,
-      border: `1px dashed ${C.maroon}`,
+      border: `1px dashed ${name ? C.line : C.maroon}`,
+      borderRadius: 4,
       background: C.paper,
       cursor: "pointer",
       fontFamily: sans,
@@ -1347,6 +1355,165 @@ function ProgramLayerBuilder() {
       whiteSpace: "nowrap"
     }
   }, money(l.alloc ?? l.amt))))));
+  const Btn = ({
+    primary,
+    children,
+    className,
+    ...rest
+  }) => /*#__PURE__*/React.createElement("button", {
+    ...rest,
+    className: `btn ${primary ? "btn-primary" : "btn-secondary"} ${className || ""}`
+  }, children);
+  const STAGES = [["reading", "Reading the budget"], ["thinking", "Thinking it through"], ["drafting", "Drafting programs"], ["finishing", "Checking the draft"]];
+  const stageIdx = STAGES.findIndex(([k]) => k === stage);
+  const RunStatus = () => /*#__PURE__*/React.createElement("div", {
+    className: "card fade",
+    style: {
+      padding: `${narrow ? 14 : 16}px ${pad}px`,
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      gap: 12,
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: narrow ? 16 : 18
+    }
+  }, progress || "Reading the budget…"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 12,
+      color: C.grey
+    }
+  }, items.length, " lines · ", new Set(items.map(i => i.cc)).size, " costing centers · sent as ", sendCount)), /*#__PURE__*/React.createElement("div", {
+    className: "indet",
+    style: {
+      marginTop: 12
+    }
+  }, /*#__PURE__*/React.createElement("span", null)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: `repeat(${STAGES.length}, 1fr)`,
+      gap: 6,
+      marginTop: 10
+    }
+  }, STAGES.map(([k, label], i) => {
+    const state = i < stageIdx ? "done" : i === stageIdx ? "active" : "todo";
+    return /*#__PURE__*/React.createElement("div", {
+      key: k,
+      style: {
+        fontFamily: sans,
+        fontSize: narrow ? 10.5 : 11.5,
+        color: state === "todo" ? C.line : state === "active" ? C.maroon : C.grey,
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        minWidth: 0
+      }
+    }, /*#__PURE__*/React.createElement("span", {
+      style: {
+        width: 8,
+        height: 8,
+        borderRadius: 8,
+        background: state === "todo" ? C.line : state === "active" ? C.maroon : C.grey,
+        flexShrink: 0
+      }
+    }), /*#__PURE__*/React.createElement("span", {
+      style: {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap"
+      }
+    }, label, k === "drafting" && draft?.programs?.length ? ` · ${draft.programs.length}` : ""));
+  })));
+  const SkeletonCard = () => /*#__PURE__*/React.createElement("section", {
+    className: "card program-card skel",
+    style: {
+      marginBottom: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: `18px ${pad}px 14px`,
+      display: "grid",
+      gridTemplateColumns: narrow ? "1fr" : "1fr auto",
+      gap: 20
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: 90,
+      height: 10,
+      marginBottom: 10
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: "55%",
+      height: 22,
+      marginBottom: 10
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: "92%",
+      height: 12,
+      marginBottom: 6
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: "70%",
+      height: 12
+    }
+  })), !narrow && /*#__PURE__*/React.createElement("div", {
+    style: {
+      textAlign: "right"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: 120,
+      height: 26,
+      marginLeft: "auto",
+      marginBottom: 8
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: 150,
+      height: 10,
+      marginLeft: "auto"
+    }
+  }))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      borderTop: `1px solid ${C.line}`,
+      display: "grid",
+      gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr"
+    }
+  }, [0, 1, 2].map(i => /*#__PURE__*/React.createElement("div", {
+    key: i,
+    style: {
+      padding: `12px ${pad}px`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: 70,
+      height: 9,
+      marginBottom: 8
+    }
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "sk",
+    style: {
+      width: "85%",
+      height: 12
+    }
+  })))));
   return /*#__PURE__*/React.createElement("div", {
     style: {
       minHeight: "100vh",
@@ -1355,69 +1522,153 @@ function ProgramLayerBuilder() {
       fontFamily: serif
     }
   }, /*#__PURE__*/React.createElement("style", null, `
+        * { -webkit-tap-highlight-color: transparent; }
+        .card { background: ${C.white}; border: 1px solid ${C.line}; border-radius: 6px; box-shadow: 0 1px 2px rgba(44,44,44,0.05); }
+        .program-card { border-top: 4px solid ${C.maroon}; }
+        .btn { padding: 10px 16px; border-radius: 4px; font: 13.5px Arial, Helvetica, sans-serif; cursor: pointer; transition: background .15s, color .15s, border-color .15s, opacity .15s; }
+        .btn-primary { background: ${C.maroon}; color: ${C.sand}; border: 1px solid ${C.maroon}; } .btn-primary:hover:not(:disabled) { background: ${C.maroonDark}; }
+        .btn-primary:disabled { background: ${C.line}; border-color: ${C.line}; color: ${C.grey}; cursor: default; }
+        .btn-secondary { background: transparent; color: ${C.maroon}; border: 1px solid ${C.maroon}; } .btn-secondary:hover { background: rgba(107,26,42,0.06); }
+        .btn-ghost { background: transparent; color: ${C.sand}; border: 1px solid rgba(244,238,226,0.45); border-radius: 4px; font: 12px Arial, Helvetica, sans-serif; cursor: pointer; } .btn-ghost:hover { border-color: ${C.sand}; }
+        .fade { animation: fadeUp .35s ease-out both; } @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+        .indet { height: 4px; background: ${C.paper}; border-radius: 4px; overflow: hidden; position: relative; }
+        .indet span { position: absolute; left: -40%; top: 0; bottom: 0; width: 40%; background: linear-gradient(90deg, transparent, ${C.gold}, transparent); animation: slide 1.4s ease-in-out infinite; }
+        @keyframes slide { to { left: 100%; } }
+        .sk { background: ${C.paper}; border-radius: 3px; animation: pulse 1.3s ease-in-out infinite; } @keyframes pulse { 50% { opacity: .45; } }
+        .skel { border-top-color: ${C.line}; }
+        .pill { display: inline-flex; align-items: center; gap: 7px; font: 12px Arial, Helvetica, sans-serif; padding: 4px 10px; border-radius: 999px; white-space: nowrap; }
+        .spin { width: 10px; height: 10px; border: 2px solid rgba(244,238,226,0.35); border-top-color: ${C.sand}; border-radius: 50%; animation: rot .8s linear infinite; } @keyframes rot { to { transform: rotate(360deg); } }
         @media print {
           @page { margin: 16mm 14mm; }
           body { background: #fff !important; }
           .no-print { display: none !important; }
           .print-layout { display: block !important; padding: 0 !important; max-width: none !important; }
-          .masthead { background: #fff !important; color: #2C2C2C !important; padding: 0 0 12px !important; border-bottom: 3px solid #6B1A2A; margin-bottom: 18px; }
-          .masthead p, .masthead .kicker { color: #6B6B6B !important; opacity: 1 !important; }
+          .appbar { position: static !important; background: #fff !important; color: #2C2C2C !important; border-bottom: 3px solid #6B1A2A; box-shadow: none !important; }
           .program-card { break-inside: avoid; page-break-inside: avoid; box-shadow: none; }
           .cost-build-body { display: block !important; }
+          .fade { animation: none; }
           a { color: inherit; }
         }
       `), /*#__PURE__*/React.createElement("div", {
-    className: "masthead",
+    className: "appbar",
     style: {
+      position: "sticky",
+      top: 0,
+      zIndex: 20,
       background: C.maroon,
       color: C.sand,
-      padding: result ? narrow ? "16px 16px 14px" : "20px 32px 18px" : narrow ? "20px 16px 18px" : "28px 32px 24px"
+      boxShadow: "0 1px 0 rgba(0,0,0,0.15)"
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
       maxWidth: 1100,
-      margin: "0 auto"
+      margin: "0 auto",
+      padding: narrow ? "10px 16px" : "12px 32px",
+      display: "flex",
+      alignItems: "center",
+      gap: 14,
+      minHeight: 48
     }
   }, /*#__PURE__*/React.createElement("div", {
-    className: "kicker",
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: 6,
+      background: C.gold,
+      display: "grid",
+      placeItems: "center",
+      flexShrink: 0
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      display: "block",
+      width: 11,
+      height: 11,
+      borderLeft: `3px solid ${C.maroon}`,
+      borderBottom: `3px solid ${C.maroon}`,
+      marginTop: -3,
+      marginLeft: 2
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      minWidth: 0,
+      flex: 1
+    }
+  }, /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: sans,
-      fontSize: 13,
-      opacity: 0.8
+      fontSize: narrow ? 13 : 14,
+      fontWeight: "bold",
+      letterSpacing: 0.2,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis"
     }
-  }, "Line of Sight · program layer builder"), /*#__PURE__*/React.createElement("h1", {
+  }, "Program Layer Builder"), (division || fileName) && /*#__PURE__*/React.createElement("div", {
     style: {
-      fontWeight: "normal",
-      fontSize: narrow ? 26 : 34,
-      margin: result ? "4px 0 0" : "6px 0 8px",
-      lineHeight: 1.15
+      fontFamily: sans,
+      fontSize: 11.5,
+      opacity: 0.8,
+      whiteSpace: "nowrap",
+      overflow: "hidden",
+      textOverflow: "ellipsis"
     }
-  }, result ? `${division || "Division"}: proposed program layer` : "From line items to costed programs"), !result && /*#__PURE__*/React.createElement("p", {
+  }, division || fileName)), status === "thinking" && /*#__PURE__*/React.createElement("span", {
+    className: "pill",
     style: {
-      maxWidth: 660,
-      margin: 0,
-      fontSize: 15,
-      lineHeight: 1.55,
-      opacity: 0.9
+      background: "rgba(0,0,0,0.18)"
     }
-  }, "Upload a division's line-item budget export. The app drafts its programs to the County Program Standard — a one-sentence statement for each, full cost and FTE, a result, a volume, and a unit cost measure, mandate status, strategic linkage, and the twenty-percent question — then runs the budget office's checks on the draft."))), /*#__PURE__*/React.createElement("div", {
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "spin"
+  }), narrow ? "Working" : STAGES[Math.max(stageIdx, 0)][1]), status === "done" && !narrow && /*#__PURE__*/React.createElement("span", {
+    className: "pill",
+    style: {
+      background: "rgba(201,156,28,0.22)",
+      color: "#F6E7B8"
+    }
+  }, "Draft ready"), narrow && result && /*#__PURE__*/React.createElement("button", {
+    className: "btn-ghost",
+    style: {
+      padding: "6px 10px"
+    },
+    onClick: () => setSetupOpen(v => !v)
+  }, setupOpen ? "Hide setup" : "Setup"), !narrow && /*#__PURE__*/React.createElement(Btn, {
+    primary: true,
+    onClick: analyze,
+    disabled: !ready,
+    style: {
+      padding: "8px 14px"
+    }
+  }, status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"))), /*#__PURE__*/React.createElement("div", {
     className: "print-layout",
     style: {
       maxWidth: 1100,
       margin: "0 auto",
-      padding: narrow ? "20px 16px 48px" : "28px 32px 64px",
+      padding: narrow ? "16px 16px 48px" : "24px 32px 64px",
       display: "grid",
       gridTemplateColumns: narrow ? "1fr" : "300px 1fr",
-      gap: narrow ? 24 : 32
+      gap: narrow ? 20 : 32,
+      alignItems: "start"
     }
-  }, /*#__PURE__*/React.createElement("aside", {
-    className: "no-print",
+  }, (setupOpen || !narrow) && /*#__PURE__*/React.createElement("aside", {
+    className: "no-print card",
     style: {
+      padding: `${narrow ? 14 : 18}px ${pad}px`,
       display: "flex",
       flexDirection: "column",
-      gap: 18
+      gap: 16,
+      position: narrow ? "static" : "sticky",
+      top: 72
     }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Anthropic API key (kept in this browser only)"), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      color: C.grey
+    }
+  }, "Setup"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Anthropic API key (kept in this browser only)"), /*#__PURE__*/React.createElement("input", {
     type: "password",
     value: apiKey,
     onChange: e => setApiKey(e.target.value),
@@ -1532,130 +1783,165 @@ function ProgramLayerBuilder() {
       color: C.grey,
       lineHeight: 1.5
     }
-  }, items.length, " funded lines · ", money(total), /*#__PURE__*/React.createElement("br", null), "Personnel is ", Math.round(personnelShare * 100), "% of the total, roughly ", headcount, " staff", personnelShare > 0.8 ? "; programs will be costed by staff time" : "", ".", zeroCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("br", null), zeroCount, " zero, revenue, or recovery lines set aside", recoveryTotal ? `, including ${money(recoveryTotal)} of cost recoveries billed to other units` : "", ".")), /*#__PURE__*/React.createElement("button", {
+  }, items.length, " funded lines · ", money(total), /*#__PURE__*/React.createElement("br", null), "Personnel is ", Math.round(personnelShare * 100), "% of the total, roughly ", headcount, " staff", personnelShare > 0.8 ? "; programs will be costed by staff time" : "", ".", zeroCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("br", null), zeroCount, " zero, revenue, or recovery lines set aside", recoveryTotal ? `, including ${money(recoveryTotal)} of cost recoveries billed to other units` : "", ".")), narrow && /*#__PURE__*/React.createElement(Btn, {
+    primary: true,
     onClick: analyze,
     disabled: !ready,
     style: {
       padding: "12px 16px",
-      background: ready ? C.maroon : C.line,
-      color: ready ? C.sand : C.grey,
-      border: "none",
-      fontFamily: sans,
-      fontSize: 14,
-      cursor: ready ? "pointer" : "default"
+      fontSize: 14
     }
-  }, status === "thinking" ? "Working…" : "Propose programs"), error && /*#__PURE__*/React.createElement("div", {
+  }, status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"), error && /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: sans,
       fontSize: 13,
       color: C.maroon,
+      lineHeight: 1.5,
+      borderLeft: `3px solid ${C.maroon}`,
+      paddingLeft: 10
+    }
+  }, error)), /*#__PURE__*/React.createElement("main", {
+    style: {
+      minWidth: 0
+    }
+  }, !live && status !== "thinking" && /*#__PURE__*/React.createElement("div", {
+    className: "card fade",
+    style: {
+      padding: `${narrow ? 18 : 24}px ${pad}px`
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 11,
+      letterSpacing: 0.8,
+      textTransform: "uppercase",
+      color: C.grey,
+      marginBottom: 12
+    }
+  }, "How it works"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: narrow ? "1fr" : "1fr 1fr 1fr",
+      gap: narrow ? 14 : 22
+    }
+  }, [["1", "Upload a budget export", "The county's standard line-item file. Revenue, zero, and recovery lines are set aside; personnel and small lines are pooled per costing center."], ["2", "Programs are drafted to the Standard", "One statement each, full cost and FTE, three measures of three kinds, mandate, priority alignment, and the twenty-percent question — cards appear as each one lands."], ["3", "The budget office's checks run", "Sums to appropriation, span, one administration program, no effort verbs, measures from real systems. Then export to PDF, HTML, Markdown, or CSV."]].map(([n, t, d]) => /*#__PURE__*/React.createElement("div", {
+    key: n,
+    style: {
+      display: "grid",
+      gridTemplateColumns: "28px 1fr",
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      background: C.maroon,
+      color: C.sand,
+      fontFamily: sans,
+      fontSize: 12,
+      display: "grid",
+      placeItems: "center"
+    }
+  }, n), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: 15.5,
+      marginBottom: 4
+    }
+  }, t), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontFamily: sans,
+      fontSize: 12.5,
+      color: C.grey,
       lineHeight: 1.5
     }
-  }, error)), /*#__PURE__*/React.createElement("main", null, !live && status !== "thinking" && /*#__PURE__*/React.createElement("div", {
+  }, d))))), /*#__PURE__*/React.createElement("p", {
     style: {
-      borderLeft: `3px solid ${C.gold}`,
-      paddingLeft: 18,
-      maxWidth: 560,
-      lineHeight: 1.6,
-      fontSize: 15
-    }
-  }, /*#__PURE__*/React.createElement("p", {
-    style: {
-      marginTop: 0
-    }
-  }, "Two things make a program layer real rather than ceremonial: every dollar sits in a program, and each program carries a measure someone can actually produce. What you get here is a first draft of both, meant to be argued with in a room with the division director."), /*#__PURE__*/React.createElement("p", {
-    style: {
-      marginBottom: 0,
-      color: C.grey
-    }
-  }, "The draft follows the four boundary rules — exclusive and exhaustive, cost follows the budget, 3–25% span, administration named — and the fixed program-statement grammar. Where the budget is mostly salaries in one costing center, staff time is allocated as a starting bid for the director to correct. Responsibilities funded outside this budget are noted, not costed.")), status === "thinking" && !draft?.programs?.length && /*#__PURE__*/React.createElement("div", {
-    style: {
-      borderLeft: `3px solid ${C.gold}`,
-      paddingLeft: 18,
-      fontFamily: sans,
+      margin: "18px 0 0",
       fontSize: 14,
       color: C.grey,
-      lineHeight: 1.6
+      lineHeight: 1.55,
+      maxWidth: 640
+    }
+  }, "What comes out is a first draft meant to be argued with in a room with the division director. Dollars are summed from your file; only the grouping, shares, and language are proposed.")), status === "thinking" && /*#__PURE__*/React.createElement(RunStatus, null), live && /*#__PURE__*/React.createElement("div", null, live.division_read && !programs.length && /*#__PURE__*/React.createElement("p", {
+    className: "fade",
+    style: {
+      fontSize: 15.5,
+      lineHeight: 1.6,
+      maxWidth: 640,
+      margin: "0 0 20px"
+    }
+  }, live.division_read), programs.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "card fade",
+    style: {
+      padding: `${narrow ? 14 : 18}px ${pad}px`,
+      marginBottom: 20
     }
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      fontFamily: serif,
-      fontSize: 18,
-      color: C.ink
+      display: "grid",
+      gridTemplateColumns: narrow ? "1fr 1fr" : "repeat(4, 1fr)",
+      gap: narrow ? 10 : 16,
+      marginBottom: 14
     }
-  }, progress || "Reading the budget…"), /*#__PURE__*/React.createElement("div", null, items.length, " lines in ", new Set(items.map(i => i.cc)).size, " costing centers, sent as ", sendCount, " summarized lines.")), live && /*#__PURE__*/React.createElement("div", null, streaming && /*#__PURE__*/React.createElement("div", {
-    className: "no-print",
-    style: {
-      borderLeft: `3px solid ${C.gold}`,
-      paddingLeft: 14,
-      marginBottom: 18,
-      fontFamily: sans,
-      fontSize: 13,
-      color: C.grey
-    }
-  }, /*#__PURE__*/React.createElement("span", {
-    style: {
-      fontFamily: serif,
-      fontSize: 16,
-      color: C.ink
-    }
-  }, progress), " Cards appear as each program is drafted; shared-line costs settle when the last one lands."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginBottom: 32
-    }
+  }, [[`${programs.length}`, "programs"], [money(total), "in this budget"], [programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1), "FTE"], [`${Math.round(coverage * 100)}%`, streaming ? "mapped so far" : "mapped"]].map(([v, l]) => /*#__PURE__*/React.createElement("div", {
+    key: l
   }, /*#__PURE__*/React.createElement("div", {
     style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "baseline",
-      marginBottom: 8,
-      flexWrap: "wrap",
-      gap: 6
+      fontSize: narrow ? 20 : 24,
+      lineHeight: 1.1
     }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: narrow ? 18 : 22
-    }
-  }, programs.length, " programs · ", money(total), " · ", programs.reduce((a, p) => a + (Number(p.fte) || 0), 0).toFixed(1), " FTE", /*#__PURE__*/React.createElement("span", {
+  }, v), /*#__PURE__*/React.createElement("div", {
     style: {
       fontFamily: sans,
-      fontSize: 13,
+      fontSize: 11.5,
       color: C.grey,
-      marginLeft: 10
+      marginTop: 3
     }
-  }, facingLabel(live.orientation))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontFamily: sans,
-      fontSize: 13,
-      color: coverage > 0.98 || streaming ? C.grey : C.maroon
-    }
-  }, Math.round(coverage * 100), "% mapped", streaming ? " so far" : "")), /*#__PURE__*/React.createElement("div", {
+  }, l)))), /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
-      height: 22,
+      height: 14,
       width: "100%",
-      background: C.line
+      background: C.paper,
+      borderRadius: 3,
+      overflow: "hidden"
     }
   }, sorted.filter(p => p.cost > 0).map((p, i) => /*#__PURE__*/React.createElement("div", {
     key: p.name,
     title: `${p.name}: ${money(p.cost)}`,
     style: {
       width: `${Math.max(p.share * 100, 0.4)}%`,
-      background: i % 2 === 0 ? C.maroon : C.maroonDark,
-      borderRight: `1px solid ${C.sand}`
+      background: p.is_admin ? C.grey : i % 2 === 0 ? C.maroon : C.maroonDark,
+      borderRight: `1px solid ${C.white}`,
+      transition: "width .4s"
     }
-  })), unassigned.length > 0 && /*#__PURE__*/React.createElement("div", {
+  })), !streaming && unassigned.length > 0 && /*#__PURE__*/React.createElement("div", {
     style: {
       flex: 1,
       background: C.gold
     },
     title: "Unassigned"
-  })), /*#__PURE__*/React.createElement("p", {
+  })), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      fontFamily: sans,
+      fontSize: 11.5,
+      color: C.grey,
+      marginTop: 6,
+      gap: 10
+    }
+  }, /*#__PURE__*/React.createElement("span", null, facingLabel(live.orientation)), /*#__PURE__*/React.createElement("span", {
+    style: {
+      textAlign: "right"
+    }
+  }, streaming ? "shares settle when the last program lands" : coverage > 0.995 ? "every dollar sits in a program" : `${money(unassigned.reduce((s, i) => s + i.amt, 0))} unassigned`)), /*#__PURE__*/React.createElement("p", {
     style: {
       fontSize: 15,
       lineHeight: 1.6,
       maxWidth: 640,
-      margin: "16px 0 18px"
+      margin: "16px 0 16px"
     }
   }, live.division_read), /*#__PURE__*/React.createElement("div", {
     style: {
@@ -1759,13 +2045,12 @@ function ProgramLayerBuilder() {
     return /*#__PURE__*/React.createElement("section", {
       key: key,
       id: `prog-${encodeURIComponent(p.name)}`,
-      className: "program-card",
+      className: "card program-card fade",
       style: {
-        background: C.white,
-        border: `1px solid ${C.line}`,
-        borderTop: `4px solid ${p.is_admin ? C.grey : C.maroon}`,
+        borderTopColor: p.is_admin ? C.grey : C.maroon,
         marginBottom: 20,
-        scrollMarginTop: 16
+        scrollMarginTop: 72,
+        overflow: "hidden"
       }
     }, /*#__PURE__*/React.createElement("div", {
       style: {
@@ -2050,10 +2335,9 @@ function ProgramLayerBuilder() {
       lines: p.lines,
       showShare: true
     }))));
-  }), result?.accountabilities_elsewhere?.length > 0 && /*#__PURE__*/React.createElement("section", {
+  }), streaming && /*#__PURE__*/React.createElement(SkeletonCard, null), result?.accountabilities_elsewhere?.length > 0 && /*#__PURE__*/React.createElement("section", {
+    className: "card fade",
     style: {
-      background: C.white,
-      border: `1px solid ${C.line}`,
       borderTop: `4px solid ${C.gold}`,
       marginBottom: 20,
       padding: `16px ${pad}px`
@@ -2109,9 +2393,8 @@ function ProgramLayerBuilder() {
       color: C.grey
     }
   }, a.note)))))), result && /*#__PURE__*/React.createElement("section", {
+    className: "card fade",
     style: {
-      background: C.white,
-      border: `1px solid ${C.line}`,
       marginBottom: 20,
       padding: `16px ${pad}px`
     }
@@ -2149,9 +2432,8 @@ function ProgramLayerBuilder() {
       color: c.ok ? C.grey : C.ink
     }
   }, c.text))))), result && unassigned.length > 0 && /*#__PURE__*/React.createElement("section", {
+    className: "card fade",
     style: {
-      background: C.white,
-      border: `1px solid ${C.line}`,
       borderTop: `4px solid ${C.gold}`,
       marginBottom: 20,
       padding: `18px ${pad}px`
@@ -2179,9 +2461,8 @@ function ProgramLayerBuilder() {
       marginBottom: 20
     }
   }, result.cautions?.length > 0 && /*#__PURE__*/React.createElement("section", {
+    className: "card fade",
     style: {
-      background: C.white,
-      border: `1px solid ${C.line}`,
       padding: `16px ${pad}px`,
       fontSize: 14,
       lineHeight: 1.6
@@ -2199,9 +2480,8 @@ function ProgramLayerBuilder() {
       margin: "0 0 8px"
     }
   }, c))), result.data_requests?.length > 0 && /*#__PURE__*/React.createElement("section", {
+    className: "card fade",
     style: {
-      background: C.white,
-      border: `1px solid ${C.line}`,
       padding: `16px ${pad}px`,
       fontSize: 14,
       lineHeight: 1.6
@@ -2231,61 +2511,17 @@ function ProgramLayerBuilder() {
       alignItems: "center",
       flexWrap: "wrap"
     }
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: printReport,
-    style: {
-      padding: "10px 16px",
-      background: C.maroon,
-      color: C.sand,
-      border: "none",
-      fontFamily: sans,
-      fontSize: 13,
-      cursor: "pointer"
-    }
-  }, "Save as PDF"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportHtml,
-    style: {
-      padding: "10px 16px",
-      background: "none",
-      color: C.maroon,
-      border: `1px solid ${C.maroon}`,
-      fontFamily: sans,
-      fontSize: 13,
-      cursor: "pointer"
-    }
-  }, "Download report (HTML)"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportMarkdown,
-    style: {
-      padding: "10px 16px",
-      background: "none",
-      color: C.maroon,
-      border: `1px solid ${C.maroon}`,
-      fontFamily: sans,
-      fontSize: 13,
-      cursor: "pointer"
-    }
-  }, "Download Markdown"), /*#__PURE__*/React.createElement("button", {
-    onClick: exportCsv,
-    style: {
-      padding: "10px 16px",
-      background: "none",
-      color: C.maroon,
-      border: `1px solid ${C.maroon}`,
-      fontFamily: sans,
-      fontSize: 13,
-      cursor: "pointer"
-    }
-  }, "Download allocation CSV"), /*#__PURE__*/React.createElement("button", {
-    onClick: analyze,
-    style: {
-      padding: "10px 16px",
-      background: "none",
-      color: C.maroon,
-      border: `1px solid ${C.maroon}`,
-      fontFamily: sans,
-      fontSize: 13,
-      cursor: "pointer"
-    }
+  }, /*#__PURE__*/React.createElement(Btn, {
+    primary: true,
+    onClick: printReport
+  }, "Save as PDF"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: exportHtml
+  }, "Download report (HTML)"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: exportMarkdown
+  }, "Download Markdown"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: exportCsv
+  }, "Download allocation CSV"), /*#__PURE__*/React.createElement(Btn, {
+    onClick: analyze
   }, "Re-run")), result && /*#__PURE__*/React.createElement("div", {
     style: {
       marginTop: 28,
