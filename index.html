@@ -4548,7 +4548,6 @@ function ProgramLayerBuilder() {
     }
   }, live.division_read), !narrow ? /*#__PURE__*/React.createElement("div", {
     style: {
-      overflowX: "auto",
       margin: "0 -4px"
     }
   }, /*#__PURE__*/React.createElement("table", {
@@ -4557,7 +4556,8 @@ function ProgramLayerBuilder() {
       borderCollapse: "collapse",
       fontFamily: sans,
       fontSize: 12.5,
-      lineHeight: 1.45
+      lineHeight: 1.45,
+      tableLayout: "fixed"
     }
   }, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", {
     style: {
@@ -4565,14 +4565,15 @@ function ProgramLayerBuilder() {
       fontSize: 11,
       textAlign: "left"
     }
-  }, ["Program", "Serves", "Delivers", "So that", "Cost", "FTE", "Mandate", "Alignment"].map((h, i) => /*#__PURE__*/React.createElement("th", {
+  }, ["Program", "Serves", "Delivers", "So that", "Cost", "FTE"].map((h, i) => /*#__PURE__*/React.createElement("th", {
     key: h,
     style: {
       fontWeight: "normal",
       padding: "6px 8px 8px 4px",
       borderBottom: `1px solid ${C.line}`,
       textAlign: i === 4 || i === 5 ? "right" : "left",
-      whiteSpace: "nowrap"
+      whiteSpace: "nowrap",
+      width: ["19%", "22%", "22%", "24%", "9%", "4%"][i]
     }
   }, h)))), /*#__PURE__*/React.createElement("tbody", null, sorted.map(p => {
     const st = parseStatement(p.statement);
@@ -4585,8 +4586,7 @@ function ProgramLayerBuilder() {
       }
     }, /*#__PURE__*/React.createElement("td", {
       style: {
-        padding: "8px 8px 8px 4px",
-        minWidth: 150
+        padding: "8px 8px 8px 4px"
       }
     }, /*#__PURE__*/React.createElement("a", {
       href: `#prog-${encodeURIComponent(p.name)}`,
@@ -4605,19 +4605,16 @@ function ProgramLayerBuilder() {
     }, p.facing === "internal" ? "internal · performance" : "external · outcomes")), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 8px 8px 4px",
-        minWidth: 140,
         color: C.ink,
         fontWeight: "bold"
       }
     }, p.beneficiary || st.beneficiary || "—"), /*#__PURE__*/React.createElement("td", {
       style: {
-        padding: "8px 8px 8px 4px",
-        minWidth: 150
+        padding: "8px 8px 8px 4px"
       }
     }, st.service || "—"), /*#__PURE__*/React.createElement("td", {
       style: {
         padding: "8px 8px 8px 4px",
-        minWidth: 170,
         fontWeight: "bold"
       }
     }, st.result || "—"), /*#__PURE__*/React.createElement("td", {
@@ -4629,7 +4626,8 @@ function ProgramLayerBuilder() {
     }, /*#__PURE__*/React.createElement("div", null, money(p.cost)), /*#__PURE__*/React.createElement("div", {
       style: {
         height: 5,
-        width: 72,
+        width: "100%",
+        maxWidth: 72,
         background: C.paper,
         marginLeft: "auto",
         marginTop: 4,
@@ -4656,53 +4654,7 @@ function ProgramLayerBuilder() {
         textAlign: "right",
         whiteSpace: "nowrap"
       }
-    }, Number(p.fte || 0).toFixed(2)), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "8px 8px 8px 4px",
-        minWidth: 120
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        display: "inline-block",
-        fontSize: 11,
-        padding: "2px 7px",
-        border: `1px solid ${p.mandate?.status === "discretionary" ? C.gold : C.line}`,
-        borderRadius: 3,
-        color: p.mandate?.status === "discretionary" ? C.gold : C.ink,
-        whiteSpace: "nowrap"
-      }
-    }, p.mandate?.status || "—"), p.mandate?.citation && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10.5,
-        color: C.grey,
-        marginTop: 5,
-        fontStyle: "italic",
-        lineHeight: 1.35
-      }
-    }, p.mandate.citation)), /*#__PURE__*/React.createElement("td", {
-      style: {
-        padding: "8px 4px 8px 4px",
-        minWidth: 130
-      }
-    }, /*#__PURE__*/React.createElement("span", {
-      style: {
-        display: "inline-block",
-        fontSize: 11,
-        padding: "2px 7px",
-        border: `1px solid ${none ? C.line : p.alignment === "direct" ? C.gold : C.maroon}`,
-        borderRadius: 3,
-        color: none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon,
-        whiteSpace: "nowrap"
-      }
-    }, none ? "not aligned" : p.alignment || "—"), !none && p.strategic_linkage && /*#__PURE__*/React.createElement("div", {
-      style: {
-        fontSize: 10.5,
-        color: C.grey,
-        marginTop: 5,
-        fontStyle: "italic",
-        lineHeight: 1.35
-      }
-    }, p.strategic_linkage)));
+    }, Number(p.fte || 0).toFixed(2)));
   })))) : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",

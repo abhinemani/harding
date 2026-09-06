@@ -754,12 +754,12 @@ export default function ProgramLayerBuilder() {
                 </div>
                 <p style={{ fontSize: 15, lineHeight: 1.6, maxWidth: 640, margin: "16px 0 16px" }}>{live.division_read}</p>
                 {!narrow ? (
-                  <div style={{ overflowX: "auto", margin: "0 -4px" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: sans, fontSize: 12.5, lineHeight: 1.45 }}>
+                  <div style={{ margin: "0 -4px" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: sans, fontSize: 12.5, lineHeight: 1.45, tableLayout: "fixed" }}>
                       <thead>
                         <tr style={{ color: C.grey, fontSize: 11, textAlign: "left" }}>
-                          {["Program", "Serves", "Delivers", "So that", "Cost", "FTE", "Mandate", "Alignment"].map((h, i) => (
-                            <th key={h} style={{ fontWeight: "normal", padding: "6px 8px 8px 4px", borderBottom: `1px solid ${C.line}`, textAlign: i === 4 || i === 5 ? "right" : "left", whiteSpace: "nowrap" }}>{h}</th>
+                          {["Program", "Serves", "Delivers", "So that", "Cost", "FTE"].map((h, i) => (
+                            <th key={h} style={{ fontWeight: "normal", padding: "6px 8px 8px 4px", borderBottom: `1px solid ${C.line}`, textAlign: i === 4 || i === 5 ? "right" : "left", whiteSpace: "nowrap", width: ["19%", "22%", "22%", "24%", "9%", "4%"][i] }}>{h}</th>
                           ))}
                         </tr>
                       </thead>
@@ -767,27 +767,19 @@ export default function ProgramLayerBuilder() {
                         {sorted.map((p) => { const st = parseStatement(p.statement); const none = p.alignment === "none" || /none identified/i.test(p.strategic_linkage || "");
                           return (
                           <tr key={p.name} style={{ borderBottom: `1px solid ${C.line}`, verticalAlign: "top" }}>
-                            <td style={{ padding: "8px 8px 8px 4px", minWidth: 150 }}>
+                            <td style={{ padding: "8px 8px 8px 4px" }}>
                               <a href={`#prog-${encodeURIComponent(p.name)}`} style={{ color: C.ink, textDecoration: "none", fontFamily: serif, fontSize: 14 }}>{p.name}</a>
                               <div style={{ fontSize: 10.5, color: p.facing === "internal" ? "#2E7D6E" : C.maroon, marginTop: 2 }}>{p.facing === "internal" ? "internal · performance" : "external · outcomes"}</div>
                             </td>
-                            <td style={{ padding: "8px 8px 8px 4px", minWidth: 140, color: C.ink, fontWeight: "bold" }}>{p.beneficiary || st.beneficiary || "—"}</td>
-                            <td style={{ padding: "8px 8px 8px 4px", minWidth: 150 }}>{st.service || "—"}</td>
-                            <td style={{ padding: "8px 8px 8px 4px", minWidth: 170, fontWeight: "bold" }}>{st.result || "—"}</td>
+                            <td style={{ padding: "8px 8px 8px 4px", color: C.ink, fontWeight: "bold" }}>{p.beneficiary || st.beneficiary || "—"}</td>
+                            <td style={{ padding: "8px 8px 8px 4px" }}>{st.service || "—"}</td>
+                            <td style={{ padding: "8px 8px 8px 4px", fontWeight: "bold" }}>{st.result || "—"}</td>
                             <td style={{ padding: "8px 8px 8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
                               <div>{money(p.cost)}</div>
-                              <div style={{ height: 5, width: 72, background: C.paper, marginLeft: "auto", marginTop: 4, position: "relative" }}><div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(p.share / (sorted[0].share || 1)) * 100}%`, background: p.is_admin ? C.grey : C.maroon }} /></div>
+                              <div style={{ height: 5, width: "100%", maxWidth: 72, background: C.paper, marginLeft: "auto", marginTop: 4, position: "relative" }}><div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${(p.share / (sorted[0].share || 1)) * 100}%`, background: p.is_admin ? C.grey : C.maroon }} /></div>
                               <div style={{ fontSize: 10.5, color: C.grey, marginTop: 2 }}>{Math.round(p.share * 100)}%</div>
                             </td>
                             <td style={{ padding: "8px 8px 8px 4px", textAlign: "right", whiteSpace: "nowrap" }}>{Number(p.fte || 0).toFixed(2)}</td>
-                            <td style={{ padding: "8px 8px 8px 4px", minWidth: 120 }}>
-                              <span style={{ display: "inline-block", fontSize: 11, padding: "2px 7px", border: `1px solid ${p.mandate?.status === "discretionary" ? C.gold : C.line}`, borderRadius: 3, color: p.mandate?.status === "discretionary" ? C.gold : C.ink, whiteSpace: "nowrap" }}>{p.mandate?.status || "—"}</span>
-                              {p.mandate?.citation && <div style={{ fontSize: 10.5, color: C.grey, marginTop: 5, fontStyle: "italic", lineHeight: 1.35 }}>{p.mandate.citation}</div>}
-                            </td>
-                            <td style={{ padding: "8px 4px 8px 4px", minWidth: 130 }}>
-                              <span style={{ display: "inline-block", fontSize: 11, padding: "2px 7px", border: `1px solid ${none ? C.line : p.alignment === "direct" ? C.gold : C.maroon}`, borderRadius: 3, color: none ? C.grey : p.alignment === "direct" ? C.gold : C.maroon, whiteSpace: "nowrap" }}>{none ? "not aligned" : p.alignment || "—"}</span>
-                              {!none && p.strategic_linkage && <div style={{ fontSize: 10.5, color: C.grey, marginTop: 5, fontStyle: "italic", lineHeight: 1.35 }}>{p.strategic_linkage}</div>}
-                            </td>
                           </tr>);
                         })}
                       </tbody>
