@@ -387,7 +387,7 @@ export default function ProgramLayerBuilder() {
     const dot = (v) => `<span class="dot ${esc(v)}"></span>`;
     const metric = (m) => `<div class="m">${dot(m.exists_today)}<div><div>${esc(m.metric)}</div><div class="src">${esc(m.source)}</div></div></div>`;
     const cards = sorted.map((p, i) => {
-      const comp = composition(p.lines).filter((c) => c.amt > 0); const m = p.measures || {};
+      const comp = composition(p.lines).filter((c) => c.amt / p.cost >= 0.005); const m = p.measures || {};
       const strip = `<div class="strip">${comp.map((c) => `<span style="width:${(c.amt / p.cost) * 100}%;background:${c.color}"></span>`).join("")}</div>
         <div class="comp">${comp.map((c) => `<span><i style="background:${c.color}"></i>${esc(c.label)} ${Math.round((c.amt / p.cost) * 100)}%</span>`).join("")}</div>`;
       const cell = (k, sub, x) => `<div><div class="mh"><b>${k}</b> ${sub}</div>${x?.metric ? `<div class="m">${dot(x.exists_today)}<div><div>${esc(x.metric)}</div><div class="src">${esc(x.source)}</div></div></div>` : `<div class="src" style="color:${C.maroon}">Not proposed.</div>`}</div>`;
@@ -427,10 +427,10 @@ export default function ProgramLayerBuilder() {
   .legend { font: 12px Arial, Helvetica, sans-serif; color: ${C.grey}; margin: 14px 0 26px; display: flex; gap: 16px; }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 9px; margin-right: 6px; vertical-align: middle; } .dot.likely { background: #3D6B3A; } .dot.possible { background: ${C.gold}; } .dot.unlikely { background: ${C.maroon}; }
   .card { border: 1px solid ${C.line}; border-top: 4px solid ${C.maroon}; margin-bottom: 18px; break-inside: avoid; page-break-inside: avoid; } .card.un { border-top-color: ${C.gold}; padding: 16px 20px; }
-  .head { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding: 16px 20px 12px; } .head p { margin: 0; max-width: 520px; }
-  .cost { text-align: right; min-width: 180px; } .big { font-size: 24px; line-height: 1.1; }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 22px; padding: 16px 20px 12px; } .head p { margin: 0; max-width: 520px; }
+  .cost { text-align: right; min-width: 0; } .big { font-size: 24px; line-height: 1.1; }
   .strip { display: flex; height: 8px; width: 180px; margin: 10px 0 0 auto; background: ${C.paper}; } .strip span { display: block; }
-  .comp { font-size: 11px; margin-top: 4px; display: flex; justify-content: flex-end; gap: 10px; } .comp i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+  .comp { font-size: 11px; margin-top: 4px; display: flex; justify-content: flex-end; gap: 3px 10px; flex-wrap: wrap; } .comp i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
   .chip { display: inline-block; margin-top: 8px; font: 12px Arial, Helvetica, sans-serif; color: ${C.maroonDark}; background: #F6E7B8; padding: 3px 8px; }
   .note { font-size: 13px; margin: 0 0 10px; max-width: 640px; } .note.pad { padding: 0 20px 10px; }
   .measures { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid ${C.line}; } .measures > div { padding: 12px 20px 14px; } .measures > div:first-child { border-right: 1px solid ${C.line}; }
@@ -835,11 +835,11 @@ export default function ProgramLayerBuilder() {
                   <section key={key} id={`prog-${encodeURIComponent(p.name)}`} className="card program-card fade"
                     style={{ borderTopColor: p.is_admin ? C.grey : C.maroon, marginBottom: 20, scrollMarginTop: 72, overflow: "hidden" }}>
                     {/* header */}
-                    <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "1fr auto", gap: narrow ? 12 : 20, alignItems: "start" }}>
+                    <div style={{ padding: `18px ${pad}px 14px`, display: "grid", gridTemplateColumns: narrow ? "1fr" : "minmax(0, 1fr) 250px", gap: narrow ? 12 : 24, alignItems: "start" }}>
                       <div>
                         <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginBottom: 4 }}>Program {idx + 1}{streaming ? "" : ` of ${sorted.length}`}{p.is_admin ? " · administration" : ""}{streaming ? " · draft" : ""}</div>
                         <h2 style={{ fontWeight: "normal", fontSize: narrow ? 20 : 23, margin: "0 0 8px", lineHeight: 1.2 }}>{p.name}</h2>
-                        <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.55, maxWidth: 580 }}>
+                        <p style={{ margin: 0, fontSize: 15.5, lineHeight: 1.55, maxWidth: 640 }}>
                           {p.statement}{p.statement && !/[.!?]$/.test(p.statement) ? "" : ""}, at {money(p.cost)} and {Number(p.fte || 0).toFixed(2)} FTE in FY26.
                         </p>
                         <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -849,17 +849,17 @@ export default function ProgramLayerBuilder() {
                             return <span style={{ fontFamily: sans, fontSize: 11, color: col, border: `1px solid ${none ? C.line : col}`, padding: "2px 8px" }}>{p.alignment && !none ? `${p.alignment} · ` : ""}{none && p.alignment === "none" && !/none identified/i.test(p.strategic_linkage) ? "not aligned · " : ""}{p.strategic_linkage}</span>; })()}
                         </div>
                       </div>
-                      <div style={{ textAlign: narrow ? "left" : "right", minWidth: narrow ? 0 : 180, borderTop: narrow ? `1px solid ${C.line}` : "none", paddingTop: narrow ? 10 : 0 }}>
+                      <div style={{ textAlign: narrow ? "left" : "right", minWidth: 0, borderTop: narrow ? `1px solid ${C.line}` : "none", paddingTop: narrow ? 10 : 0 }}>
                         <div style={{ fontSize: narrow ? 22 : 26, lineHeight: 1.1 }}>{money(p.cost)}</div>
                         <div style={{ fontFamily: sans, fontSize: 12, color: C.grey, marginTop: 4 }}>{Math.round(p.share * 100)}% of this budget · {Number(p.fte || 0).toFixed(2)} FTE</div>
                         {(() => { const direct = p.lines.filter((l) => l.share >= 1).reduce((a, l) => a + l.alloc, 0); const alloc = p.cost - direct;
                           return alloc > 0 && direct > 0 ? <div style={{ fontFamily: sans, fontSize: 11, color: C.grey, marginTop: 2 }}>{money(direct)} direct + {money(alloc)} allocated</div> : alloc > 0 ? <div style={{ fontFamily: sans, fontSize: 11, color: C.grey, marginTop: 2 }}>fully allocated from shared lines</div> : null; })()}
                         <div style={{ marginTop: 10 }}>
-                          <div style={{ display: "flex", height: 8, width: narrow ? "100%" : 180, marginLeft: narrow ? 0 : "auto", background: C.paper }}>
+                          <div style={{ display: "flex", height: 8, width: narrow ? "100%" : 200, marginLeft: narrow ? 0 : "auto", background: C.paper }}>
                             {comp.map((c) => c.amt > 0 && <div key={c.label} title={`${c.label}: ${money(c.amt)}`} style={{ width: `${(c.amt / p.cost) * 100}%`, background: c.color }} />)}
                           </div>
-                          <div style={{ fontFamily: sans, fontSize: 11, color: C.grey, marginTop: 4, display: "flex", justifyContent: narrow ? "flex-start" : "flex-end", gap: 10, flexWrap: "wrap" }}>
-                            {comp.filter((c) => c.amt > 0).map((c) => <span key={c.label}><span style={{ display: "inline-block", width: 8, height: 8, background: c.color, marginRight: 4, verticalAlign: "middle" }} />{c.label} {Math.round((c.amt / p.cost) * 100)}%</span>)}
+                          <div style={{ fontFamily: sans, fontSize: 11, color: C.grey, marginTop: 4, display: "flex", justifyContent: narrow ? "flex-start" : "flex-end", gap: "4px 10px", flexWrap: "wrap", lineHeight: 1.4 }}>
+                            {comp.filter((c) => c.amt / p.cost >= 0.005).map((c) => <span key={c.label}><span style={{ display: "inline-block", width: 8, height: 8, background: c.color, marginRight: 4, verticalAlign: "middle" }} />{c.label} {Math.round((c.amt / p.cost) * 100)}%</span>)}
                           </div>
                         </div>
                       </div>

@@ -3090,7 +3090,7 @@ function ProgramLayerBuilder() {
     const dot = v => `<span class="dot ${esc(v)}"></span>`;
     const metric = m => `<div class="m">${dot(m.exists_today)}<div><div>${esc(m.metric)}</div><div class="src">${esc(m.source)}</div></div></div>`;
     const cards = sorted.map((p, i) => {
-      const comp = composition(p.lines).filter(c => c.amt > 0);
+      const comp = composition(p.lines).filter(c => c.amt / p.cost >= 0.005);
       const m = p.measures || {};
       const strip = `<div class="strip">${comp.map(c => `<span style="width:${c.amt / p.cost * 100}%;background:${c.color}"></span>`).join("")}</div>
         <div class="comp">${comp.map(c => `<span><i style="background:${c.color}"></i>${esc(c.label)} ${Math.round(c.amt / p.cost * 100)}%</span>`).join("")}</div>`;
@@ -3135,10 +3135,10 @@ function ProgramLayerBuilder() {
   .legend { font: 12px Arial, Helvetica, sans-serif; color: ${C.grey}; margin: 14px 0 26px; display: flex; gap: 16px; }
   .dot { display: inline-block; width: 9px; height: 9px; border-radius: 9px; margin-right: 6px; vertical-align: middle; } .dot.likely { background: #3D6B3A; } .dot.possible { background: ${C.gold}; } .dot.unlikely { background: ${C.maroon}; }
   .card { border: 1px solid ${C.line}; border-top: 4px solid ${C.maroon}; margin-bottom: 18px; break-inside: avoid; page-break-inside: avoid; } .card.un { border-top-color: ${C.gold}; padding: 16px 20px; }
-  .head { display: grid; grid-template-columns: 1fr auto; gap: 20px; padding: 16px 20px 12px; } .head p { margin: 0; max-width: 520px; }
-  .cost { text-align: right; min-width: 180px; } .big { font-size: 24px; line-height: 1.1; }
+  .head { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 22px; padding: 16px 20px 12px; } .head p { margin: 0; max-width: 520px; }
+  .cost { text-align: right; min-width: 0; } .big { font-size: 24px; line-height: 1.1; }
   .strip { display: flex; height: 8px; width: 180px; margin: 10px 0 0 auto; background: ${C.paper}; } .strip span { display: block; }
-  .comp { font-size: 11px; margin-top: 4px; display: flex; justify-content: flex-end; gap: 10px; } .comp i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+  .comp { font-size: 11px; margin-top: 4px; display: flex; justify-content: flex-end; gap: 3px 10px; flex-wrap: wrap; } .comp i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
   .chip { display: inline-block; margin-top: 8px; font: 12px Arial, Helvetica, sans-serif; color: ${C.maroonDark}; background: #F6E7B8; padding: 3px 8px; }
   .note { font-size: 13px; margin: 0 0 10px; max-width: 640px; } .note.pad { padding: 0 20px 10px; }
   .measures { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid ${C.line}; } .measures > div { padding: 12px 20px 14px; } .measures > div:first-child { border-right: 1px solid ${C.line}; }
@@ -4853,8 +4853,8 @@ function ProgramLayerBuilder() {
       style: {
         padding: `18px ${pad}px 14px`,
         display: "grid",
-        gridTemplateColumns: narrow ? "1fr" : "1fr auto",
-        gap: narrow ? 12 : 20,
+        gridTemplateColumns: narrow ? "1fr" : "minmax(0, 1fr) 250px",
+        gap: narrow ? 12 : 24,
         alignItems: "start"
       }
     }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
@@ -4876,7 +4876,7 @@ function ProgramLayerBuilder() {
         margin: 0,
         fontSize: 15.5,
         lineHeight: 1.55,
-        maxWidth: 580
+        maxWidth: 640
       }
     }, p.statement, p.statement && !/[.!?]$/.test(p.statement) ? "" : "", ", at ", money(p.cost), " and ", Number(p.fte || 0).toFixed(2), " FTE in FY26."), /*#__PURE__*/React.createElement("div", {
       style: {
@@ -4918,7 +4918,7 @@ function ProgramLayerBuilder() {
     })())), /*#__PURE__*/React.createElement("div", {
       style: {
         textAlign: narrow ? "left" : "right",
-        minWidth: narrow ? 0 : 180,
+        minWidth: 0,
         borderTop: narrow ? `1px solid ${C.line}` : "none",
         paddingTop: narrow ? 10 : 0
       }
@@ -4960,7 +4960,7 @@ function ProgramLayerBuilder() {
       style: {
         display: "flex",
         height: 8,
-        width: narrow ? "100%" : 180,
+        width: narrow ? "100%" : 200,
         marginLeft: narrow ? 0 : "auto",
         background: C.paper
       }
@@ -4979,10 +4979,11 @@ function ProgramLayerBuilder() {
         marginTop: 4,
         display: "flex",
         justifyContent: narrow ? "flex-start" : "flex-end",
-        gap: 10,
-        flexWrap: "wrap"
+        gap: "4px 10px",
+        flexWrap: "wrap",
+        lineHeight: 1.4
       }
-    }, comp.filter(c => c.amt > 0).map(c => /*#__PURE__*/React.createElement("span", {
+    }, comp.filter(c => c.amt / p.cost >= 0.005).map(c => /*#__PURE__*/React.createElement("span", {
       key: c.label
     }, /*#__PURE__*/React.createElement("span", {
       style: {
