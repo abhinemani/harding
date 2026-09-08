@@ -2633,6 +2633,10 @@ function ProgramLayerBuilder() {
     localStorage.setItem("pw_effort", effort);
   }, [effort]);
   const supportsEffort = !model.startsWith("claude-haiku");
+  const [thinkingOn, setThinkingOn] = useState(() => (localStorage.getItem("pw_thinking") ?? "on") === "on");
+  useEffect(() => {
+    localStorage.setItem("pw_thinking", thinkingOn ? "on" : "off");
+  }, [thinkingOn]);
   const [draft, setDraft] = useState(null);
   const [stage, setStage] = useState("idle"); // idle | reading | thinking | drafting | finishing | done
   const [setupOpen, setSetupOpen] = useState(true);
@@ -2846,6 +2850,11 @@ function ProgramLayerBuilder() {
           ...(supportsEffort ? {
             output_config: {
               effort
+            }
+          } : {}),
+          ...(supportsEffort && !thinkingOn ? {
+            thinking: {
+              type: "disabled"
             }
           } : {}),
           messages: [{
@@ -4122,7 +4131,26 @@ function ProgramLayerBuilder() {
   }, EFFORTS.map(m => /*#__PURE__*/React.createElement("option", {
     key: m.id,
     value: m.id
-  }, m.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Budget export (.csv or .xlsx)"), /*#__PURE__*/React.createElement(Drop, {
+  }, m.label))), /*#__PURE__*/React.createElement("label", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      marginTop: 8,
+      fontFamily: sans,
+      fontSize: 12,
+      color: C.grey,
+      cursor: "pointer"
+    }
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: thinkingOn,
+    onChange: e => setThinkingOn(e.target.checked)
+  }), /*#__PURE__*/React.createElement("span", null, "Let the model think before writing ", /*#__PURE__*/React.createElement("span", {
+    style: {
+      color: C.line
+    }
+  }, "·"), " off is much faster to first program"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Budget export (.csv or .xlsx)"), /*#__PURE__*/React.createElement(Drop, {
     onChange: onBudget,
     accept: ".csv,.xlsx,.xls",
     name: fileName,
