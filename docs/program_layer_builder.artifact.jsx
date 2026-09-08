@@ -160,6 +160,9 @@ export default function ProgramLayerBuilder() {
   const [progress, setProgress] = useState("");
   const [draft, setDraft] = useState(null);
   const [stage, setStage] = useState("idle"); // idle | reading | thinking | drafting | finishing | done
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => { if (status !== "thinking") return; const t = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000); return () => clearInterval(t); }, [status, startedAt]);
   const [setupOpen, setSetupOpen] = useState(true);
   const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
@@ -239,7 +242,7 @@ export default function ProgramLayerBuilder() {
 
   async function analyze() {
     if (!items.length) return;
-    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress(""); setDraft(null); setStage("reading");
+    setStatus("thinking"); setError(""); setResult(null); setCsvText(""); setProgress(""); setDraft(null); setStage("reading"); setStartedAt(Date.now()); setElapsed(0);
     // Compress within each costing center when the file is large: personnel pooled, small operating lines pooled, big lines kept.
     // Pools carry negative ids; the reply's references to them are expanded back to the real lines below.
     let send = []; const pools = {};
@@ -269,15 +272,23 @@ export default function ProgramLayerBuilder() {
           messages: [{ role: "user", content: buildPrompt(division, send, total, personnelShare, emptyCenters, headcount, recoveries) + extra }] }),
       });
       if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(`API ${res.status}: ${err.error?.message || res.statusText}`); }
-      let text = "", stopReason = null, lastDraft = 0;
+      let text = "", stopReason = null, lastDraft = 0, lastEvent = Date.now();
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+      const readWithTimeout = () => Promise.race([reader.read(), new Promise((_, rej) => setTimeout(() => rej(new Error(`No response from the model for ${Math.round((Date.now() - lastEvent) / 1000)} seconds. Try a lower effort level, turn thinking off, or use Haiku.`)), 150000))]);
       while (true) {
-        const { value, done } = await reader.read(); if (done) break;
+        const { value, done } = await readWithTimeout(); if (done) break;
         buf += dec.decode(value, { stream: true });
         const parts = buf.split("\n"); buf = parts.pop();
         for (const line of parts) {
           if (!line.startsWith("data:")) continue;
           let ev; try { ev = JSON.parse(line.slice(5)); } catch { continue; }
+          lastEvent = Date.now();
+          if (ev.type === "message_start") { setStage("thinking"); setProgress("Connected — the model is reading the budget…"); continue; }
+          if (ev.type === "content_block_start") {
+            if (ev.content_block?.type === "thinking" || ev.content_block?.type === "redacted_thinking") { setStage("thinking"); setProgress("Thinking through the division…"); }
+            if (ev.content_block?.type === "text") { setStage("drafting"); setProgress("Drafting the first program…"); }
+            continue;
+          }
           if (ev.type === "content_block_delta" && ev.delta?.text) {
             text += ev.delta.text;
             const now = Date.now();
@@ -587,7 +598,7 @@ export default function ProgramLayerBuilder() {
     <div className="card" style={{ padding: `${narrow ? 14 : 16}px ${pad}px`, marginBottom: 20 }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: narrow ? 16 : 18 }}>{progress || "Reading the budget…"}</div>
-        <div style={{ fontFamily: sans, fontSize: 12, color: C.grey }}>{items.length} lines · {new Set(items.map((i) => i.cc)).size} costing centers · sent as {sendCount}</div>
+        <div style={{ fontFamily: sans, fontSize: 12, color: C.grey }}>{items.length} lines · {new Set(items.map((i) => i.cc)).size} costing centers · sent as {sendCount} · {elapsed}s</div>
       </div>
       <div className="indet" style={{ marginTop: 12 }}><span /></div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${STAGES.length}, 1fr)`, gap: 6, marginTop: 10 }}>

@@ -2639,6 +2639,13 @@ function ProgramLayerBuilder() {
   }, [thinkingOn]);
   const [draft, setDraft] = useState(null);
   const [stage, setStage] = useState("idle"); // idle | reading | thinking | drafting | finishing | done
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (status !== "thinking") return;
+    const t = setInterval(() => setElapsed(Math.round((Date.now() - startedAt) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [status, startedAt]);
   const [setupOpen, setSetupOpen] = useState(true);
   const [pools, setPools] = useState({});
   const [sendCount, setSendCount] = useState(0);
@@ -2789,6 +2796,8 @@ function ProgramLayerBuilder() {
     setProgress("");
     setDraft(null);
     setStage("reading");
+    setStartedAt(Date.now());
+    setElapsed(0);
     // Compress within each costing center when the file is large: personnel pooled, small operating lines pooled, big lines kept.
     // Pools carry negative ids; the reply's references to them are expanded back to the real lines below.
     let send = [];
@@ -2869,15 +2878,17 @@ function ProgramLayerBuilder() {
       }
       let text = "",
         stopReason = null,
-        lastDraft = 0;
+        lastDraft = 0,
+        lastEvent = Date.now();
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let buf = "";
+      const readWithTimeout = () => Promise.race([reader.read(), new Promise((_, rej) => setTimeout(() => rej(new Error(`No response from the model for ${Math.round((Date.now() - lastEvent) / 1000)} seconds. Try a lower effort level, turn thinking off, or use Haiku.`)), 150000))]);
       while (true) {
         const {
           value,
           done
-        } = await reader.read();
+        } = await readWithTimeout();
         if (done) break;
         buf += dec.decode(value, {
           stream: true
@@ -2890,6 +2901,23 @@ function ProgramLayerBuilder() {
           try {
             ev = JSON.parse(line.slice(5));
           } catch {
+            continue;
+          }
+          lastEvent = Date.now();
+          if (ev.type === "message_start") {
+            setStage("thinking");
+            setProgress("Connected — the model is reading the budget…");
+            continue;
+          }
+          if (ev.type === "content_block_start") {
+            if (ev.content_block?.type === "thinking" || ev.content_block?.type === "redacted_thinking") {
+              setStage("thinking");
+              setProgress("Thinking through the division…");
+            }
+            if (ev.content_block?.type === "text") {
+              setStage("drafting");
+              setProgress("Drafting the first program…");
+            }
             continue;
           }
           if (ev.type === "content_block_delta" && ev.delta?.type === "thinking_delta") {
@@ -3569,7 +3597,7 @@ function ProgramLayerBuilder() {
       fontSize: 12,
       color: C.grey
     }
-  }, items.length, " lines · ", new Set(items.map(i => i.cc)).size, " costing centers · sent as ", sendCount)), /*#__PURE__*/React.createElement("div", {
+  }, items.length, " lines · ", new Set(items.map(i => i.cc)).size, " costing centers · sent as ", sendCount, " · ", elapsed, "s")), /*#__PURE__*/React.createElement("div", {
     className: "indet",
     style: {
       marginTop: 12
