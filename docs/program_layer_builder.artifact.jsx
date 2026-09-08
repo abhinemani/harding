@@ -683,7 +683,7 @@ export default function ProgramLayerBuilder() {
           {status === "thinking" && <span className="pill" style={{ background: "rgba(0,0,0,0.18)" }}><span className="spin" />{narrow ? "Working" : STAGES[Math.max(stageIdx, 0)][1]}</span>}
           {status === "done" && !narrow && <span className="pill" style={{ background: "rgba(201,156,28,0.22)", color: "#F6E7B8" }}>Draft ready</span>}
           {narrow && result && <button className="btn-ghost" style={{ padding: "6px 10px" }} onClick={() => setSetupOpen((v) => !v)}>{setupOpen ? "Hide setup" : "Setup"}</button>}
-          {!narrow && <Btn primary onClick={analyze} disabled={!ready} style={{ padding: "8px 14px" }}>{status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"}</Btn>}
+
         </div>
       </div>
 
@@ -717,7 +717,7 @@ export default function ProgramLayerBuilder() {
             </div>
           )}
 
-          {narrow && <Btn primary onClick={analyze} disabled={!ready} style={{ padding: "12px 16px", fontSize: 14 }}>{status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"}</Btn>}
+          <Btn primary onClick={analyze} disabled={!ready} style={{ padding: "12px 16px", fontSize: 14 }}>{status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"}</Btn>
           {error && <div style={{ fontFamily: sans, fontSize: 13, color: C.maroon, lineHeight: 1.5, borderLeft: `3px solid ${C.maroon}`, paddingLeft: 10 }}>{error}</div>}
         </aside>}
 

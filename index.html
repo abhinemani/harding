@@ -3939,14 +3939,7 @@ function ProgramLayerBuilder() {
       padding: "6px 10px"
     },
     onClick: () => setSetupOpen(v => !v)
-  }, setupOpen ? "Hide setup" : "Setup"), !narrow && /*#__PURE__*/React.createElement(Btn, {
-    primary: true,
-    onClick: analyze,
-    disabled: !ready,
-    style: {
-      padding: "8px 14px"
-    }
-  }, status === "thinking" ? "Working…" : result ? "Run again" : "Propose programs"))), /*#__PURE__*/React.createElement("div", {
+  }, setupOpen ? "Hide setup" : "Setup"))), /*#__PURE__*/React.createElement("div", {
     className: "print-layout",
     style: {
       maxWidth: 1100,
@@ -4248,7 +4241,7 @@ function ProgramLayerBuilder() {
       color: C.grey,
       lineHeight: 1.5
     }
-  }, items.length, " funded lines · ", money(total), /*#__PURE__*/React.createElement("br", null), "Personnel is ", Math.round(personnelShare * 100), "% of the total, roughly ", headcount, " staff", personnelShare > 0.8 ? "; programs will be costed by staff time" : "", ".", zeroCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("br", null), zeroCount, " zero, revenue, or recovery lines set aside", recoveryTotal ? `, including ${money(recoveryTotal)} of cost recoveries billed to other units` : "", ".")), narrow && /*#__PURE__*/React.createElement(Btn, {
+  }, items.length, " funded lines · ", money(total), /*#__PURE__*/React.createElement("br", null), "Personnel is ", Math.round(personnelShare * 100), "% of the total, roughly ", headcount, " staff", personnelShare > 0.8 ? "; programs will be costed by staff time" : "", ".", zeroCount > 0 && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("br", null), zeroCount, " zero, revenue, or recovery lines set aside", recoveryTotal ? `, including ${money(recoveryTotal)} of cost recoveries billed to other units` : "", ".")), /*#__PURE__*/React.createElement(Btn, {
     primary: true,
     onClick: analyze,
     disabled: !ready,
