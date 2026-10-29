@@ -25,7 +25,7 @@ The two files differ in exactly these ways, and no others should creep in:
 
 - **Module syntax**: `index.html` has none; the Artifact uses ES imports/export.
 - **API auth**: `index.html` has a password-type input for the user's own API key, stored in `localStorage`, sent as `x-api-key` with `anthropic-dangerous-direct-browser-access: true`. The Artifact has no key input; the host injects credentials.
-- **Model/effort choice**: `index.html` exposes a model dropdown (Haiku 4.5 / Sonnet 4.6 / Sonnet 5 / Opus 5) and an effort dropdown, both persisted to `localStorage`. The Artifact is hardcoded to `claude-sonnet-4-6` with no effort parameter, since that's what's available inside claude.ai.
+- **Model/effort choice**: `index.html` exposes a model dropdown (Haiku 5.5 / Sonnet 5.5 / Opus 5.5) and an effort dropdown, both persisted to `localStorage`; a saved retired model ID is mapped to its successor via `RETIRED_MODELS`. The thinking toggle sends `thinking: {type: "between_tools"}` on Sonnet 5.5 and `{type: "disabled"}` on Haiku 5.5, and is locked on for Opus 5.5, which rejects both. Sonnet and Opus requests opt into server-side refusal fallback (`fallbacks: "default"` with the `server-side-fallback-2026-07-01` beta header); Haiku 5.5 has none. The Artifact is hardcoded to `claude-sonnet-4-6` with no effort parameter, since that's what's available inside claude.ai.
 - **Exports**: `index.html` uses real `Blob` + `<a download>` for CSV/Markdown/HTML and a real `window.print()` for PDF. The Artifact copies the same content to the clipboard and to an on-screen `<textarea>` instead, because the Artifact sandbox blocks both downloads and the print dialog.
 
 Everything else — the prompt, the Program Standard logic, the costing/allocation math, the card layout, the responsive breakpoints, the budget-office checks — should be identical between the two. If you change the prompt or the UI, change it in the Artifact first (it's readable JSX) and port the same diff into the compiled block in `index.html`.
@@ -46,7 +46,7 @@ If you add a new division type and learn something new about how its budget misl
 
 ## Testing without an API key
 
-There's no offline/mock mode. To test UI changes without spending API credits, either (a) hardcode a `result` object matching the JSON schema in `buildPrompt()` and skip the fetch, or (b) run against Haiku 4.5 at low effort, which is inexpensive.
+There's no offline/mock mode. To test UI changes without spending API credits, either (a) hardcode a `result` object matching the JSON schema in `buildPrompt()` and skip the fetch, or (b) run against Haiku 5.5 at low effort, which is inexpensive.
 
 ## What NOT to change casually
 
