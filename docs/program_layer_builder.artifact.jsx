@@ -310,10 +310,12 @@ export default function ProgramLayerBuilder() {
     };
     try {
       let { text, stopReason } = await run("");
+      if (stopReason === "refusal") throw new Error("The model declined this request (a safety filter flagged it). This is rare on budget data; try running again or switching models.");
       if (stopReason === "max_tokens") {
         setProgress("The first draft ran long; asking for a tighter one…"); setDraft(null);
         ({ text, stopReason } = await run("\n\nIMPORTANT: your previous reply exceeded the length limit and was discarded. Produce the same JSON at half the length: at most 6 programs, 2 outputs and 1 outcome each, every string under 15 words, notes under 20 words, no more than 2 cautions and 2 data_requests."));
       }
+      if (stopReason === "refusal") throw new Error("The model declined this request (a safety filter flagged it). This is rare on budget data; try running again or switching models.");
       if (stopReason === "max_tokens") throw new Error("The reply was cut off before the JSON finished, even after a retry. Try a smaller file or a different model.");
       const s = text.indexOf("{"), e = text.lastIndexOf("}");
       if (s < 0) throw new Error(`No JSON in reply. It began: ${text.slice(0, 160)}`);

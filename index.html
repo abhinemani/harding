@@ -2602,19 +2602,27 @@ function ProgramLayerBuilder() {
   }, [apiKey]);
   const [printing, setPrinting] = useState(false);
   const MODELS = [{
-    id: "claude-haiku-4-5-20251001",
-    label: "Haiku 4.5 — fastest"
+    id: "claude-haiku-5-5",
+    label: "Haiku 5.5 — fastest, cheapest"
   }, {
-    id: "claude-sonnet-4-6",
-    label: "Sonnet 4.6 — balanced (same as claude.ai)"
+    id: "claude-sonnet-5-5",
+    label: "Sonnet 5.5 — balanced (recommended)"
   }, {
-    id: "claude-sonnet-5",
-    label: "Sonnet 5 — strong"
-  }, {
-    id: "claude-opus-5",
-    label: "Opus 5 — strongest, slowest"
+    id: "claude-opus-5-5",
+    label: "Opus 5.5 — strongest, slowest"
   }];
-  const [model, setModel] = useState(() => localStorage.getItem("pw_model") || "claude-sonnet-4-6");
+  // A model saved by an older build maps to its current successor.
+  const RETIRED_MODELS = {
+    "claude-haiku-4-5-20251001": "claude-haiku-5-5",
+    "claude-sonnet-4-6": "claude-sonnet-5-5",
+    "claude-sonnet-5": "claude-sonnet-5-5",
+    "claude-opus-5": "claude-opus-5-5"
+  };
+  const [model, setModel] = useState(() => {
+    const saved = localStorage.getItem("pw_model");
+    const m = RETIRED_MODELS[saved] || saved;
+    return MODELS.some(x => x.id === m) ? m : "claude-sonnet-5-5";
+  });
   useEffect(() => {
     localStorage.setItem("pw_model", model);
   }, [model]);
@@ -2626,13 +2634,17 @@ function ProgramLayerBuilder() {
     label: "Medium — recommended"
   }, {
     id: "high",
-    label: "High — most thorough (API default)"
+    label: "High — most thorough"
   }];
   const [effort, setEffort] = useState(() => localStorage.getItem("pw_effort") || "medium");
   useEffect(() => {
     localStorage.setItem("pw_effort", effort);
   }, [effort]);
-  const supportsEffort = !model.startsWith("claude-haiku");
+  // Opus 5.5 always thinks; Sonnet 5.5 turns thinking off with between_tools, Haiku 5.5 with disabled.
+  const canSkipThinking = model !== "claude-opus-5-5";
+  const thinkingOff = model === "claude-sonnet-5-5" ? "between_tools" : "disabled";
+  // Haiku has no server-side fallback; Sonnet and Opus re-run a declined request on Anthropic's recommended model.
+  const hasFallback = model !== "claude-haiku-5-5";
   const [thinkingOn, setThinkingOn] = useState(() => (localStorage.getItem("pw_thinking") ?? "on") === "on");
   useEffect(() => {
     localStorage.setItem("pw_thinking", thinkingOn ? "on" : "off");
@@ -2850,21 +2862,25 @@ function ProgramLayerBuilder() {
           "Content-Type": "application/json",
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
+          "anthropic-dangerous-direct-browser-access": "true",
+          ...(hasFallback ? {
+            "anthropic-beta": "server-side-fallback-2026-07-01"
+          } : {})
         },
         body: JSON.stringify({
           model,
           max_tokens: 12000,
           stream: true,
-          ...(supportsEffort ? {
-            output_config: {
-              effort
+          output_config: {
+            effort
+          },
+          ...(canSkipThinking && !thinkingOn ? {
+            thinking: {
+              type: thinkingOff
             }
           } : {}),
-          ...(supportsEffort && !thinkingOn ? {
-            thinking: {
-              type: "disabled"
-            }
+          ...(hasFallback ? {
+            fallbacks: "default"
           } : {}),
           messages: [{
             role: "user",
@@ -2951,6 +2967,7 @@ function ProgramLayerBuilder() {
         text,
         stopReason
       } = await run("");
+      if (stopReason === "refusal") throw new Error("The model declined this request (a safety filter flagged it). This is rare on budget data; try running again or switching models.");
       if (stopReason === "max_tokens") {
         setProgress("The first draft ran long; asking for a tighter one…");
         setDraft(null);
@@ -2959,6 +2976,7 @@ function ProgramLayerBuilder() {
           stopReason
         } = await run("\n\nIMPORTANT: your previous reply exceeded the length limit and was discarded. Produce the same JSON at half the length: at most 6 programs, 2 outputs and 1 outcome each, every string under 15 words, notes under 20 words, no more than 2 cautions and 2 data_requests."));
       }
+      if (stopReason === "refusal") throw new Error("The model declined this request (a safety filter flagged it). This is rare on budget data; try running again or switching models.");
       if (stopReason === "max_tokens") throw new Error("The reply was cut off before the JSON finished, even after a retry. Try a smaller file or a different model.");
       const s = text.indexOf("{"),
         e = text.lastIndexOf("}");
@@ -2981,7 +2999,7 @@ function ProgramLayerBuilder() {
           division,
           fileName,
           model,
-          effort: supportsEffort ? effort : null,
+          effort,
           total,
           programCount: (parsed.programs || []).length,
           items,
@@ -4137,7 +4155,7 @@ function ProgramLayerBuilder() {
   }, MODELS.map(m => /*#__PURE__*/React.createElement("option", {
     key: m.id,
     value: m.id
-  }, m.label)))), supportsEffort && /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Effort (speed vs. depth)"), /*#__PURE__*/React.createElement("select", {
+  }, m.label)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Effort (speed vs. depth)"), /*#__PURE__*/React.createElement("select", {
     value: effort,
     onChange: e => setEffort(e.target.value),
     style: {
@@ -4161,17 +4179,18 @@ function ProgramLayerBuilder() {
       fontFamily: sans,
       fontSize: 12,
       color: C.grey,
-      cursor: "pointer"
+      cursor: canSkipThinking ? "pointer" : "default"
     }
   }, /*#__PURE__*/React.createElement("input", {
     type: "checkbox",
-    checked: thinkingOn,
+    checked: thinkingOn || !canSkipThinking,
+    disabled: !canSkipThinking,
     onChange: e => setThinkingOn(e.target.checked)
   }), /*#__PURE__*/React.createElement("span", null, "Let the model think before writing ", /*#__PURE__*/React.createElement("span", {
     style: {
       color: C.line
     }
-  }, "·"), " off is much faster to first program"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Budget export (.csv or .xlsx)"), /*#__PURE__*/React.createElement(Drop, {
+  }, "·"), canSkipThinking ? " off is much faster to first program" : " Opus 5.5 always does"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement(Label, null, "Budget export (.csv or .xlsx)"), /*#__PURE__*/React.createElement(Drop, {
     onChange: onBudget,
     accept: ".csv,.xlsx,.xls",
     name: fileName,
